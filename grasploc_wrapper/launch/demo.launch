@@ -1,0 +1,23 @@
+<launch>
+  <!--Grasploc node and all associate params-->
+  <arg name="num_samples" default="100"/>
+  <arg name="neighborhood_radius" default="0.025"/>
+  <arg name="max_grasper_aperture" default="0.110"/>
+  <arg name="finger_width" default="0.01"/>
+  <arg name="orient_radius" default="0.09"/>
+  <arg name="distance_radius" default="0.0016"/>
+  <arg name="alignment_radius" default="0.02"/>
+  <arg name="min_num_handle_inliers" default="3"/>
+  <!-- Zero handles means all graspable points will be returned
+    for numbers greater than 0 up to max_num_handles handles will be returned -->
+  <arg name="max_num_handles" default="0"/>
+  <arg name="visualize" default="True"/>
+  <arg name="min_num_points_in_grasp" default="40"/>
+  <arg name="max_num_points_intefering" default="5"/>
+
+  <!-- Grasploc Wrapper launch file -->
+  <include file="$(find grasploc_wrapper)/launch/grasploc_wrapper.launch" pass_all_args="true"/>
+
+  <node name="demo" pkg="grasploc_wrapper" type="demo_node" output="screen"/>
+  <!--include file="$(find fetch_moveit_config)/launch/move_group.launch"/-->
+</launch>

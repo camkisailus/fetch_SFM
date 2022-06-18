@@ -1,0 +1,3 @@
+<launch>
+    <node pkg="fetch_actions" type="grasp.py" name="grasp_client_node" output="screen"/>
+</launch>

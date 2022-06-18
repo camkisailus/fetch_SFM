@@ -1,0 +1,31 @@
+<launch>
+  <!-- Grasploc node and all associate params -->
+  <arg name="num_samples" default="100"/>
+  <arg name="neighborhood_radius" default="0.025"/>
+  <arg name="max_grasper_aperture" default="0.110"/>
+  <arg name="finger_width" default="0.01"/>
+  <arg name="orient_radius" default="0.09"/>
+  <arg name="distance_radius" default="0.0016"/>
+  <arg name="alignment_radius" default="0.02"/>
+  <arg name="min_num_handle_inliers" default="3"/>
+  <!-- Zero handles means all graspable points will be returned
+    for numbers greater than 0 up to max_num_handles handles will be returned -->
+  <arg name="max_num_handles" default="0"/>
+  <arg name="visualize" default="True"/>
+  <arg name="min_num_points_in_grasp" default="40"/>
+  <arg name="max_num_points_intefering" default="5"/>
+  <node name="grasploc" pkg="grasploc_wrapper" type="grasploc_wrapper_node">
+    <param name="num_samples" value="$(arg num_samples)"/>
+    <param name="neighborhood_radius" value="$(arg neighborhood_radius)"/>
+    <param name="max_grasper_aperture" value="$(arg max_grasper_aperture)"/>
+    <param name="finger_width" value="$(arg finger_width)"/>
+    <param name="orient_radius" value="$(arg orient_radius)"/>
+    <param name="distance_radius" value="$(arg distance_radius)"/>
+    <param name="alignment_radius" value="$(arg alignment_radius)"/>
+    <param name="min_num_handle_inliers" value="$(arg min_num_handle_inliers)"/>
+    <param name="max_num_handles" value="$(arg max_num_handles)"/>
+    <param name="visualize" value="$(arg visualize)"/>
+    <param name="min_num_points_in_grasp" value="$(arg min_num_points_in_grasp)"/>
+    <param name="max_num_points_intefering" value="$(arg max_num_points_intefering)"/>
+  </node>
+</launch>

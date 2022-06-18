@@ -1,0 +1,3 @@
+<launch>
+    <node pkg="fetch_actions" type="pick.py" name="pick_client_node" output="screen"/>
+</launch>

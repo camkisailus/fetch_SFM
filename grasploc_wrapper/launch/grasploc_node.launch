@@ -1,0 +1,9 @@
+<launch>
+
+    <!-- Grasploc Wrapper launch file -->
+    <include file="$(find grasploc_wrapper)/launch/grasploc_wrapper.launch" pass_all_args="true">
+        <arg name="visualize" value="false"/>
+    </include>
+    <node pkg="grasploc_wrapper" type="grasploc_node" name="grasploc_node" output="screen"/>
+
+</launch>
