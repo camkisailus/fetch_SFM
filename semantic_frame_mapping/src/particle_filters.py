@@ -24,7 +24,6 @@ class State():
 
 class StaticObject(object):
     def __init__(self, label, x, y, z):
-        # tf_listener = tf.TransformListener()
         self.label = label
         self.full_name = label
         self.x = x
@@ -61,10 +60,12 @@ class ParticleFilter(object):
         self.Sigma = np.array([[0.02, 0, 0], [0, 0.02, 0], [0, 0, 0.02]])
         self.particles = np.zeros([n,3])
         self.weights = 1.0/self.n * np.ones([n])
-        if len(valid_regions) == 0:
-            self.valid_regions = [region_id for region_id in REGIONS.keys()]
-        else:
-            self.valid_regions = [region_id for region_id in valid_regions]
+        print(label)
+        self.valid_regions = [vd for vd in valid_regions]
+        # if len(valid_regions) == 0:
+        #     self.valid_regions = [region_id for region_id in REGIONS.keys()]
+        # else:
+        #     self.valid_regions = [region_id for region_id in valid_regions]
         self.reinvigoration_idx = 0
         self.label = label
         self.marker_pub = rospy.Publisher('filters/{}'.format(label), MarkerArray, queue_size=10)
@@ -73,10 +74,10 @@ class ParticleFilter(object):
         
     def reinvigorate(self, particle):
         region = self.valid_regions[self.reinvigoration_idx % len(self.valid_regions)]
-        min_x, max_x, min_y, max_y = REGIONS[region]
+        min_x, max_x, min_y, max_y, min_z, max_z =region.get_bounds()
         particle[0] = min_x + np.random.random()*(max_x - min_x)
         particle[1] = min_y + np.random.random()*(max_y - min_y)
-        particle[2] = 0.5
+        particle[2] = min_z + np.random.random()*(max_z - min_z)
         self.reinvigoration_idx+=1
 
         return particle
