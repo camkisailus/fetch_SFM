@@ -6,23 +6,15 @@ import numpy as np
 import copy
 import math
 import actionlib
-import tf
+# import tf
 
 from scipy.stats import multivariate_normal
 from sklearn.mixture import GaussianMixture
 from std_msgs.msg import Bool
 from threading import RLock
-from math import sin, cos
 
 from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import Pose, PointStamped, PoseStamped
-from moveit_python import MoveGroupInterface, PlanningSceneInterface, PickPlaceInterface
-from moveit_python.geometry import rotate_pose_msg_by_euler_angles
-from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, PointHeadAction, PointHeadGoal
-from grasping_msgs.msg import FindGraspableObjectsAction, FindGraspableObjectsGoal
-from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from moveit_msgs.msg import PlaceLocation, MoveItErrorCodes, Grasp
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from geometry_msgs.msg import Pose, PointStamped
 from std_msgs.msg import Bool
 from apriltag_ros.msg import AprilTagDetectionArray
 
@@ -32,7 +24,7 @@ class State():
 
 class StaticObject(object):
     def __init__(self, label, x, y, z):
-        tf_listener = tf.TransformListener()
+        # tf_listener = tf.TransformListener()
         self.label = label
         self.full_name = label
         self.x = x
@@ -88,6 +80,41 @@ class ParticleFilter(object):
         self.reinvigoration_idx+=1
 
         return particle
+
+    def systematic_resample(self):
+        """ Performs the systemic resampling algorithm used by particle filters.
+
+        This algorithm separates the sample space into N divisions. A single random
+        offset is used to to choose where to sample from for all divisions. This
+        guarantees that every sample is exactly 1/N apart.
+
+        Parameters
+        ----------
+        weights : list-like of float
+            list of weights as floats
+
+        Returns
+        -------
+
+        indexes : ndarray of ints
+            array of indexes into the weights defining the resample. i.e. the
+            index of the zeroth resample is indexes[0], etc.
+        """
+        N = len(self.weights)
+
+        # make N subdivisions, and choose positions with a consistent random offset
+        positions = (np.random.random() + np.arange(N)) / N
+
+        indexes = np.zeros(N, 'i')
+        cumulative_sum = np.cumsum(self.weights)
+        i, j = 0, 0
+        while i < N:
+            if positions[i] < cumulative_sum[j]:
+                indexes[i] = j
+                i += 1
+            else:
+                j += 1
+        return indexes
     
     def resample(self):
         # Low Variance Resampling
@@ -212,7 +239,7 @@ class ObjectParticleFilter(ParticleFilter):
                 pt.point.x = detection.pose.pose.pose.position.x
                 pt.point.y = detection.pose.pose.pose.position.y
                 pt.point.z = detection.pose.pose.pose.position.z
-                transformed_pt = tf_listener.transformPoint('map', pt)
+                # transformed_pt = tf_listener.transformPoint('map', pt)
                 obj = StaticObject(obj_label, transformed_pt.point.x, transformed_pt.point.y, transformed_pt.point.z)
                 print("Adding observation: {} to filter: {}".format(obj.label, self.label))
                 self.observations.append(obj)

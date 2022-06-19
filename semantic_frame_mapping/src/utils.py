@@ -20,15 +20,15 @@ class Frame():
         except KeyError:
             pass
 
-def init_knowledge_base():
-    frames_path = glob.glob("./sf/*")
+def init_knowledge_base(path):
+    frames_path = glob.glob(path+"*")
     knowledge_base = []
     for frame in frames_path:
-        if frame.startswith("./sf/grasp_bottle_sf.yaml"):
+        if frame.endswith("grasp_bottle_sf.yaml"):
             continue
-        if frame.startswith("./sf/stir_mug_sf.yaml"):
+        if frame.endswith("stir_mug_sf.yaml"):
             continue
-        print("Loading: ", frame)
+        print("Loading: ", frame.split('/')[-1])
         with open(frame, 'r') as fstream:
             try:
                 info_dict = yaml.safe_load(fstream)
