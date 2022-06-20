@@ -12,15 +12,15 @@ class MoveBase(object):
         self.server = actionlib.SimpleActionServer("kisailus_move_base", MoveBaseRequestAction, self.callback, auto_start=False)
         self.server.start()
         self.client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
-        self.goal_sub = rospy.Subscriber("/move_base/to", Pose2D, self.callback)
+        # self.goal_sub = rospy.Subscriber("/move_base/to", Pose2D, self.callback)
         rospy.loginfo("MOVE BASE: Waiting for move_base...")
         self.client.wait_for_server()
         rospy.loginfo("MOVE BASE: Connected to move_base!")
     
     def callback(self, msg):
-        rospy.loginfo("MOVE BASE: Received request: {}".format(msg))
+        rospy.loginfo("MOVE BASE: Received request...")
         self.go_to(msg.x, msg.y, msg.theta)
-        rospy.loginfo("MOVE BASE: Returned from go_to()")
+        rospy.loginfo("MOVE BASE: Action completed")
         self.server.set_succeeded()
         
     def go_to(self, x, y, theta, frame='map'):
@@ -34,7 +34,7 @@ class MoveBase(object):
 
         self.client.send_goal(move_goal)
         self.client.wait_for_result()
-        return self.client.get_result()
+        self.client.get_result()
 
 if __name__ == '__main__':
     rospy.init_node('move_base_client')

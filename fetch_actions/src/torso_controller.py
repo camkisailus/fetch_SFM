@@ -5,18 +5,25 @@ import actionlib
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal
 from std_msgs.msg import Float32
+from fetch_actions.msg import TorsoControlRequestAction
 
 class TorsoControllerClient(object):
     def __init__(self):
+        self.server = actionlib.SimpleActionServer("kisailus_torso_controller", TorsoControlRequestAction, self.callback, auto_start=False)
+        self.server.start()
         self.client = actionlib.SimpleActionClient("torso_controller/follow_joint_trajectory", FollowJointTrajectoryAction)
-        self.pos_sub = rospy.Subscriber("move_torso/to", Float32, self.callback)
-        rospy.loginfo("Waiting for torso_controller")
-        self.client.wait_for_server()
-        rospy.loginfo("Connected to server ...")
+        # self.pos_sub = rospy.Subscriber("move_torso/to", Float32, self.callback)
         self.joint_names = ['torso_lift_joint']
+        rospy.loginfo("TORSO CONTROLLER: Waiting for torso_controller")
+        self.client.wait_for_server()
+        rospy.loginfo("TORSO CONTROLLER: Connected to server ...")
+        
     
     def callback(self, msg):
-        self.move_to([msg.data])
+        rospy.loginfo("TORSO CONTROLLER: Received request...")
+        self.move_to([msg.height])
+        rospy.loginfo("TORSO CONTROLLER: Action completed")
+        self.server.set_succeeded()
     
     def move_to(self, position):
         traj = JointTrajectory()

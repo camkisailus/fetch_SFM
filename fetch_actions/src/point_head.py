@@ -4,16 +4,23 @@ import rospy
 import actionlib
 from control_msgs.msg import PointHeadAction, PointHeadGoal
 from geometry_msgs.msg import Point
+from fetch_actions.msg import PointHeadRequestAction
 
 class PointHeadClient(object):
     def __init__(self):
+        self.server = actionlib.SimpleActionServer("kisailus_point_head", PointHeadRequestAction, self.callback, auto_start=False)
+        self.server.start()
         self.client = actionlib.SimpleActionClient('head_controller/point_head', PointHeadAction)
         self.look_sub = rospy.Subscriber('/point_head/at', Point, self.callback)
-        rospy.loginfo("Waiting for head_controller...")
+        rospy.loginfo("POINT HEAD: Waiting for head_controller...")
         self.client.wait_for_server()
+        rospy.loginfo("POINT HEAD: Connected to head_controller!")
 
     def callback(self, msg):
+        rospy.loginfo("POINT HEAD: Received request")
         self.look_at(msg.x, msg.y, msg.z)
+        rospy.loginfo("POINT HEAD: Action completed")
+        self.server.set_succeeded()
         
     def look_at(self, x, y, z, frame='map'):
         goal = PointHeadGoal()

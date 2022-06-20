@@ -1,17 +1,13 @@
 #! /usr/bin/python3
 
 import rospy
-import numpy as np
-import math
-import random
 
-from visualization_msgs.msg import Marker, MarkerArray
 from particle_filters import *
 from utils import *
 from std_msgs.msg import Bool
-from geometry_msgs.msg import Point, Pose2D
-from std_msgs.msg import Float32, String
-from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal
+from geometry_msgs.msg import Point
+from std_msgs.msg import String
+from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal
 
 # room number: min_x, max_x, min_y, max_y, min_z, max_z
 # REGIONS = {
@@ -42,25 +38,34 @@ class Region():
 class ActionClient():
     def __init__(self):
         self.move_base_client = actionlib.SimpleActionClient("kisailus_move_base", MoveBaseRequestAction)
+        self.torso_client = actionlib.SimpleActionClient("kisailus_torso_controller", TorsoControlRequestAction)
+        self.point_head_client = actionlib.SimpleActionClient("kisailus_point_head", PointHeadRequestAction)
+        
         self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
         self.point_head_pub = rospy.Publisher('/point_head/at', Point, queue_size=10)
-        self.torso_pub = rospy.Publisher('move_torso/to', Float32, queue_size=10)
-        self.move_base_pub = rospy.Publisher('/move_base/to', Pose2D, queue_size=10)
-    
+        
     def go_to(self, x, y, theta):
-        move_goal = MoveBaseRequestGoal()
-        move_goal.x = x
-        move_goal.y = y
-        move_goal.theta = theta
-        rospy.loginfo(move_goal)
-        self.move_base_client.send_goal(move_goal)
+        request = MoveBaseRequestGoal()
+        request.x = x
+        request.y = y
+        request.theta = theta
+        self.move_base_client.send_goal(request)
         self.move_base_client.wait_for_result()
-        rospy.loginfo("SFM: Done waiting for result")
 
     def move_torso(self, height):
-        msg = Float32()
-        msg.data = height
-        self.torso_pub.publish(msg)
+        request = TorsoControlRequestGoal()
+        request.height = height
+        self.torso_client.send_goal(request)
+        self.torso_client.wait_for_result()
+    
+    def point_head(self, x, y, z):
+        request = PointHeadRequestGoal()
+        request.x = x
+        request.y = y
+        request.z = z
+        self.point_head_client.send_goal(request)
+        self.point_head_client.wait_for_result()
+        
     
     
 class SFMClient():
@@ -108,7 +113,9 @@ class SFMClient():
             filter.publish()
     
     def execute_frame(self, frame_name):
-        self.ac.go_to(-4.0, -1.0, 0.0)
+        # self.ac.go_to(-4.0, -1.0, 0.0)
+        # self.ac.move_torso(0.25)
+        self.ac.point_head(0, 0, 1.5)
         
 
 if __name__ == '__main__':
