@@ -9,7 +9,7 @@ from math import sin, cos
 class MoveBaseClient(object):
     def __init__(self):
         self.client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
-        self.goal_sub = rospy.Subscriber("/move_base_client/goal", Pose2D, self.callback)
+        self.goal_sub = rospy.Subscriber("/move_base/to", Pose2D, self.callback)
         rospy.loginfo("Waiting for move_base...")
         self.client.wait_for_server()
     

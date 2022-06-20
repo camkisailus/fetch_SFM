@@ -18,9 +18,7 @@ from geometry_msgs.msg import Pose, PointStamped
 from std_msgs.msg import Bool
 from apriltag_ros.msg import AprilTagDetectionArray
 
-class State():
-    def __init__(self):
-        self.action_history = ['idle']
+
 
 class StaticObject(object):
     def __init__(self, label, x, y, z):
@@ -68,7 +66,7 @@ class ParticleFilter(object):
         #     self.valid_regions = [region_id for region_id in valid_regions]
         self.reinvigoration_idx = 0
         self.label = label
-        self.marker_pub = rospy.Publisher('filters/{}'.format(label), MarkerArray, queue_size=10)
+        # self.marker_pub = rospy.Publisher('filters/{}'.format(label), MarkerArray, queue_size=10)
         for i in range(self.n):
             self.particles[i] = self.reinvigorate(self.particles[i])
         
@@ -179,19 +177,24 @@ class ParticleFilter(object):
             marker.id = i
             marker.header.frame_id = 'map'
             if self.label == 'grasp_spoon':
+                # Red Sphere
                 marker.color.r = 1
                 marker.type = marker.SPHERE
             elif self.label == 'grasp_mug':
+                # Blue Sphere
                 marker.color.b = 1
                 marker.type = marker.SPHERE
             elif self.label == 'stir_mug':
+                # Purple Cube
                 marker.color.r = 0.5
                 marker.color.b = 0.5
                 marker.type = marker.CUBE
             elif self.label == 'spoon':
+                # Red Cube
                 marker.color.r = 1
                 marker.type = marker.CUBE
             elif self.label == 'mug':
+                # Blue Cube
                 marker.color.b = 1
                 marker.type = marker.CUBE
             
@@ -269,6 +272,7 @@ class ObjectParticleFilter(ParticleFilter):
         return max_phi
 
     def update_filter(self):
+        # rospy.loginfo("Updating {}".format(self.label))
         for k in range(self.n):
             self.particles[k, :]= self.jitter(self.particles[k, :])
             self.weights[k] = self.assign_weight(self.particles[k, :])
@@ -281,7 +285,7 @@ class FrameParticleFilter(ParticleFilter):
         super(FrameParticleFilter, self).__init__(n, label, valid_regions)
         self.lock = RLock()
         self.marker_pub = rospy.Publisher('filter/particles/{}'.format(label), MarkerArray, queue_size=10)
-        self.execute_sub = rospy.Subscriber('{}/execute'.format(self.label), Bool, self.execute, queue_size=1)
+        # self.execute_sub = rospy.Subscriber('{}/execute'.format(self.label), Bool, self.execute, queue_size=1)
         self.frame_element_filters = {frame_element:None for frame_element in core_frame_elements}
         self.frame_elements = core_frame_elements
         if preconditions:
@@ -298,6 +302,8 @@ class FrameParticleFilter(ParticleFilter):
         nav_goal_y = mean[1]
         nav_goal_t = 0.0
         rospy.loginfo("Navigating to ({}, {}, {})".format(nav_goal_x, nav_goal_y, nav_goal_t))
+
+
         move_base.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
         head_action.look_at(mean[0], mean[1], mean[2])
         mean, _ = self.gmm()
@@ -455,6 +461,7 @@ class FrameParticleFilter(ParticleFilter):
         return measurement #*context
     
     def update_filter(self, state):
+        # rospy.loginfo("Updating {}".format(self.label))
         # rospy.loginfo(state.action_history)
         with self.lock:
             for k in range(self.n):

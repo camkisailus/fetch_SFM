@@ -12,6 +12,7 @@ class TorsoControllerClient(object):
         self.pos_sub = rospy.Subscriber("move_torso/to", Float32, self.callback)
         rospy.loginfo("Waiting for torso_controller")
         self.client.wait_for_server()
+        rospy.loginfo("Connected to server ...")
         self.joint_names = ['torso_lift_joint']
     
     def callback(self, msg):
