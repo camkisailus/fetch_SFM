@@ -9,6 +9,7 @@ project(fetch_actions)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   actionlib
+  actionlib_msgs
   control_msgs
   geometry_msgs
   grasping_msgs
@@ -18,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   rospy
   trajectory_msgs
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -68,17 +70,17 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate actions in the 'action' folder
-# add_action_files(
-#   FILES
-#   Action1.action
-#   Action2.action
-# )
+add_action_files(
+  FILES
+  MoveBaseRequest.action
+)
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   control_msgs#   geometry_msgs#   grasping_msgs#   move_base_msgs#   moveit_msgs#   trajectory_msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  actionlib_msgs
+  #control_msgs#   geometry_msgs#   grasping_msgs#   move_base_msgs#   moveit_msgs#   trajectory_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -112,7 +114,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES fetch_actions
-#  CATKIN_DEPENDS actionlib control_msgs geometry_msgs grasping_msgs move_base_msgs moveit_msgs moveit_python rospy rospy trajectory_msgs
+   CATKIN_DEPENDS message_runtime actionlib actionlib_msgs control_msgs geometry_msgs grasping_msgs move_base_msgs moveit_msgs moveit_python rospy rospy trajectory_msgs
 #  DEPENDS system_lib
 )
 

@@ -50,6 +50,7 @@
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>actionlib</build_depend>
+  <build_depend>actionlib_msgs</build_depend>
   <build_depend>control_msgs</build_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>grasping_msgs</build_depend>
@@ -58,6 +59,7 @@
   <build_depend>moveit_python</build_depend>
   <build_depend>rospy</build_depend>
   <build_depend>trajectory_msgs</build_depend>
+  <build_depend>message_generation</build_depend>
   <build_export_depend>actionlib</build_export_depend>
   <build_export_depend>control_msgs</build_export_depend>
   <build_export_depend>geometry_msgs</build_export_depend>
@@ -68,9 +70,11 @@
   <build_export_depend>rospy</build_export_depend>
   <build_export_depend>trajectory_msgs</build_export_depend>
   <exec_depend>actionlib</exec_depend>
+  <exec_depend>actionlib_msgs</exec_depend>
   <exec_depend>control_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>grasping_msgs</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
   <exec_depend>move_base_msgs</exec_depend>
   <exec_depend>moveit</exec_depend>
   <exec_depend>moveit_msgs</exec_depend>

@@ -11,6 +11,7 @@ from utils import *
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Point, Pose2D
 from std_msgs.msg import Float32, String
+from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal
 
 # room number: min_x, max_x, min_y, max_y, min_z, max_z
 # REGIONS = {
@@ -40,11 +41,22 @@ class Region():
 
 class ActionClient():
     def __init__(self):
+        self.move_base_client = actionlib.SimpleActionClient("kisailus_move_base", MoveBaseRequestAction)
         self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
         self.point_head_pub = rospy.Publisher('/point_head/at', Point, queue_size=10)
         self.torso_pub = rospy.Publisher('move_torso/to', Float32, queue_size=10)
         self.move_base_pub = rospy.Publisher('/move_base/to', Pose2D, queue_size=10)
     
+    def go_to(self, x, y, theta):
+        move_goal = MoveBaseRequestGoal()
+        move_goal.x = x
+        move_goal.y = y
+        move_goal.theta = theta
+        rospy.loginfo(move_goal)
+        self.move_base_client.send_goal(move_goal)
+        self.move_base_client.wait_for_result()
+        rospy.loginfo("SFM: Done waiting for result")
+
     def move_torso(self, height):
         msg = Float32()
         msg.data = height
@@ -96,7 +108,7 @@ class SFMClient():
             filter.publish()
     
     def execute_frame(self, frame_name):
-        self.ac.move_torso(0.2)
+        self.ac.go_to(-4.0, -1.0, 0.0)
         
 
 if __name__ == '__main__':
