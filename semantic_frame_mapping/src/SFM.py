@@ -117,42 +117,44 @@ class SFMClient():
                 print("No preconditions!")
     
     def update_filters(self):
-        if self.update:
-            for _, filter in self.object_filters.items():
-                filter.update_filter()
-                filter.publish()
-            for _, filter in self.frame_filters.items():
-                filter.update_filter(self.state)
-                filter.publish()
+        # if self.update:
+        for _, filter in self.object_filters.items():
+            filter.update_filter()
+            filter.publish()
+        for _, filter in self.frame_filters.items():
+            filter.update_filter(self.state)
+            filter.publish()
     
     def execute_frame(self, frame_name):
         rospy.loginfo("SFM: Got request to grasp_bottle")
         self.update = False # Stop constant update while executing
-        mean, _ = self.frame_filters['grasp_bottle'].gmm()
-        nav_goal_x = mean[0] - 0.75
-        nav_goal_y = mean[1]
+        mean, _ = self.frame_filters['grasp_bottle'].bgmm()
+        nav_goal_x = mean[0] - 0.7
+        nav_goal_y = mean[1] - 0.3
         nav_goal_t = 0.0
         rospy.loginfo("SFM: Navigating to ({:.4f}, {:.4f}, {:.4f})".format(nav_goal_x, nav_goal_y, nav_goal_t))
         self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
         rospy.loginfo("SFM: Raising toros to 0.3")
         self.ac.move_torso(0.3)
         rospy.loginfo("SFM: Pointing head to (-1.5, -0.7, 0.6)")
-        self.ac.point_head(-1.5, -0.7, 0.6)
+        self.ac.point_head(-1.5, -0.8, 0.6)
         rospy.loginfo("SFM: Picking")
         self.ac.pick()
         rospy.loginfo("SFM: Done")
         self.update = True
-        
-        # self.ac.go_to(-4.0, -1.0, 0.0)
-        # self.ac.move_torso(0.25)
-        #self.ac.point_head(0, 0, 1.5)
+
         
 
 if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
     foo = SFMClient()
     r = rospy.Rate(1)
+    # i = 0
     while not rospy.is_shutdown():
         # rospy.loginfo("Updating...")
         foo.update_filters()
+        # rospy.loginfo(i)
+        # if i == 10:
+        #     foo.frame_filters['grasp_bottle'].bgmm()
+        # i+=1
         r.sleep()

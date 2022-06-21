@@ -3,14 +3,16 @@
 import rospy
 import sys
 import actionlib
+import tf
 
 from moveit_commander import PlanningSceneInterface, roscpp_initialize, roscpp_shutdown, MoveGroupCommander
-from geometry_msgs.msg import PoseStamped, PoseArray
+from geometry_msgs.msg import PoseStamped, Point
 from moveit_msgs.msg import Grasp
 from trajectory_msgs.msg import JointTrajectoryPoint
 from grasping_msgs.msg import FindGraspableObjectsAction, FindGraspableObjectsGoal
 from fetch_actions.msg import PickRequestAction
 from grasploc_wrapper_msgs.msg import GrasplocRequestAction, GrasplocRequestGoal
+from semantic_frame_mapping.msg import ObjectDetection
 
 class GraspableObject:
     def __init__(self, name, pose):
@@ -20,6 +22,8 @@ class GraspableObject:
 class GraspClient:
     def __init__(self):
         roscpp_initialize(sys.argv)
+        self.tf_listener = tf.TransformListener()
+        # rospy.logwarn("TF_LISTENER: {}".format(self.tf_listener))
         self.scene = PlanningSceneInterface()
         self.arm = MoveGroupCommander('arm', wait_for_servers=30)
         self.find_client = actionlib.SimpleActionClient('basic_grasping_perception/find_objects', FindGraspableObjectsAction)
@@ -28,6 +32,7 @@ class GraspClient:
         self.gloc_client.wait_for_server()
         self.request_server = actionlib.SimpleActionServer('kisailus_pick', PickRequestAction, self.callback, auto_start=False)
         self.request_server.start()
+        self.observation_pub = rospy.Publisher("scene/observations", ObjectDetection, queue_size=10)
         rospy.sleep(1)
         # self.grasploc_sub = rospy.Subscriber('grasploc', PoseArray, self.grasploc_cb)
     
@@ -94,6 +99,11 @@ class GraspClient:
         idx = -1
         # rospy.loginfo("Found {} objects".format(len(find_result.objects)))
         self.graspable_objs = []
+        if len(find_result.objects) == 0:
+            rospy.logwarn("No graspable objects here")
+            self.request_server.set_aborted()
+            return
+
         for obj in find_result.objects:
             if obj.object.primitive_poses[0].position.z <= 0.6 or obj.object.primitive_poses[0].position.x >= 1.5:
                 continue
@@ -102,11 +112,17 @@ class GraspClient:
             #     continue
             idx += 1
             obj.object.name = 'object_{}'.format(idx)
+            
             # rospy.loginfo(obj.object)
             obj_pose = PoseStamped()
             obj_pose.pose = obj.object.primitive_poses[0]
             obj_pose.header.frame_id = 'base_link'
             self.graspable_objs.append(GraspableObject(obj.object.name, obj_pose))
+            obs_msg = ObjectDetection()
+            transformed_pt = self.tf_listener.transformPose('map', obj_pose)
+            obs_msg.pose = transformed_pt.pose
+            obs_msg.label = 'bottle'
+            self.observation_pub.publish(obs_msg)
             rospy.loginfo("Adding {} to planning scene.".format(obj.object.name))
             self.scene.add_box(obj.object.name, obj_pose, (obj.object.primitives[0].dimensions[0], obj.object.primitives[0].dimensions[1], obj.object.primitives[0].dimensions[2]))
         idx = -1
