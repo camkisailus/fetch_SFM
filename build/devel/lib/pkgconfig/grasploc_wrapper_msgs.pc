@@ -1,0 +1,8 @@
+prefix=/home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/src/build/devel
+
+Name: grasploc_wrapper_msgs
+Description: Description of grasploc_wrapper_msgs
+Version: 0.0.0
+Cflags: -I/home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/src/build/devel/include
+Libs: -L${prefix}/lib 
+Requires: message_runtime geometry_msgs sensor_msgs actionlib_msgs

@@ -1,0 +1,11 @@
+# Goal
+# Input a point cloud and return a list of graspable points
+sensor_msgs/PointCloud2 input_pc
+geometry_msgs/Vector3 viewpoint
+---
+# Result
+geometry_msgs/PoseArray graspable_points
+geometry_msgs/Vector3[] normal
+geometry_msgs/Vector3[] principal
+---
+# Feedback

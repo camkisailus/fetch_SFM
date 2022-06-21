@@ -1,0 +1,7 @@
+# Goal
+int32 tmp
+---
+# Result
+geometry_msgs/PoseArray graspable_points
+---
+# Feedback

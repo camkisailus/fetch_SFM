@@ -1,10 +1,10 @@
 # semantic frame
 # grasp_bottle_sf.yaml 
 
-name: grasp_mug
+name: grasp_bottle
 description: grasp a bottle 
 frame_elements:
-  - name: mug
+  - name: bottle
     is_core: True
   - name: object_compound_modifier
     is_core: False 

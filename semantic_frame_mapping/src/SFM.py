@@ -7,16 +7,21 @@ from utils import *
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Point
 from std_msgs.msg import String
-from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal
+from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal
 
 # room number: min_x, max_x, min_y, max_y, min_z, max_z
 # REGIONS = {
 #     'table1': (0, 1, 0, 1, 0, 1),
 #     'table2': (5, 6, 5, 6, 5, 6),
 # }
+# REGIONS = {
+#     'table1': (-2, -3, -5, -4, 0.5, 1.5),
+#     'table2': (5, 6, 5, 6, 5, 6),
+# }
+## LAB 06-21-22
 REGIONS = {
-    'table1': (-2, -3, -5, -4, 0.5, 1.5),
-    'table2': (5, 6, 5, 6, 5, 6),
+    'table1': (-2.4, -1.5, -1.25, -0.5, 0.6, 0.8),
+    'table2': (-5.75, -4.75, -2.25, -1.5, 0.6, 0.8)
 }
 class State():
     def __init__(self):
@@ -40,7 +45,7 @@ class ActionClient():
         self.move_base_client = actionlib.SimpleActionClient("kisailus_move_base", MoveBaseRequestAction)
         self.torso_client = actionlib.SimpleActionClient("kisailus_torso_controller", TorsoControlRequestAction)
         self.point_head_client = actionlib.SimpleActionClient("kisailus_point_head", PointHeadRequestAction)
-        
+        self.pick_client = actionlib.SimpleActionClient("kisailus_pick", PickRequestAction)
         self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
         self.point_head_pub = rospy.Publisher('/point_head/at', Point, queue_size=10)
         
@@ -65,6 +70,12 @@ class ActionClient():
         request.z = z
         self.point_head_client.send_goal(request)
         self.point_head_client.wait_for_result()
+    
+    def pick(self):
+        request = PickRequestGoal()
+        request.tmp = 0
+        self.pick_client.send_goal(request)
+        self.pick_client.wait_for_result()
         
     
     
@@ -76,15 +87,16 @@ class SFMClient():
         self.regions = {}
         for name, bounds in REGIONS.items():
             self.regions[name] = Region(name, bounds[0], bounds[1],bounds[2], bounds[3], bounds[4], bounds[5])
-        self.spoon_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1']], label='spoon')
-        self.mug_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table2']], label='mug')
-        self.object_filters = {'spoon':self.spoon_particle_filter, 'mug':self.mug_particle_filter}
+        self.bottle_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1']], label='bottle')
+        # self.mug_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table2']], label='mug')
+        self.object_filters = {'bottle':self.bottle_particle_filter}#, 'mug':self.mug_particle_filter}
         self.state = State()
         self.frame_filters = {}
         self.frame_to_label_dict = {}
+        self.update = True
         for i, frame in enumerate(self.kb):
             self.frame_to_label_dict[i] = frame.name
-            valid_regions = [self.regions['table1']]
+            valid_regions = [self.regions['table1'], self.regions['table2']]
             filter = FrameParticleFilter(50, frame.name, frame.preconditions, frame.core_frame_elements, valid_regions)
             for cfe in frame.core_frame_elements:
                 filter.add_frame_element(self.object_filters[cfe], cfe)
@@ -105,17 +117,35 @@ class SFMClient():
                 print("No preconditions!")
     
     def update_filters(self):
-        for _, filter in self.object_filters.items():
-            filter.update_filter()
-            filter.publish()
-        for _, filter in self.frame_filters.items():
-            filter.update_filter(self.state)
-            filter.publish()
+        if self.update:
+            for _, filter in self.object_filters.items():
+                filter.update_filter()
+                filter.publish()
+            for _, filter in self.frame_filters.items():
+                filter.update_filter(self.state)
+                filter.publish()
     
     def execute_frame(self, frame_name):
+        rospy.loginfo("SFM: Got request to grasp_bottle")
+        self.update = False # Stop constant update while executing
+        mean, _ = self.frame_filters['grasp_bottle'].gmm()
+        nav_goal_x = mean[0] - 0.75
+        nav_goal_y = mean[1]
+        nav_goal_t = 0.0
+        rospy.loginfo("SFM: Navigating to ({:.4f}, {:.4f}, {:.4f})".format(nav_goal_x, nav_goal_y, nav_goal_t))
+        self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
+        rospy.loginfo("SFM: Raising toros to 0.3")
+        self.ac.move_torso(0.3)
+        rospy.loginfo("SFM: Pointing head to (-1.5, -0.7, 0.6)")
+        self.ac.point_head(-1.5, -0.7, 0.6)
+        rospy.loginfo("SFM: Picking")
+        self.ac.pick()
+        rospy.loginfo("SFM: Done")
+        self.update = True
+        
         # self.ac.go_to(-4.0, -1.0, 0.0)
         # self.ac.move_torso(0.25)
-        self.ac.point_head(0, 0, 1.5)
+        #self.ac.point_head(0, 0, 1.5)
         
 
 if __name__ == '__main__':

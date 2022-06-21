@@ -24,8 +24,8 @@ def init_knowledge_base(path):
     frames_path = glob.glob(path+"*")
     knowledge_base = []
     for frame in frames_path:
-        if frame.endswith("grasp_bottle_sf.yaml"):
-            continue
+        # if frame.endswith("grasp_bottle_sf.yaml"):
+        #     continue
         if frame.endswith("stir_mug_sf.yaml"):
             continue
         if frame.endswith("drinkserve_sf.yaml"):

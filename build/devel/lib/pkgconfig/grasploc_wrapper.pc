@@ -1,0 +1,8 @@
+prefix=/home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/src/build/devel
+
+Name: grasploc_wrapper
+Description: Description of grasploc_wrapper
+Version: 0.0.0
+Cflags: -I/home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/src/grasploc_wrapper/include
+Libs: -L${prefix}/lib 
+Requires: roscpp sensor_msgs std_msgs grasploc_wrapper_msgs

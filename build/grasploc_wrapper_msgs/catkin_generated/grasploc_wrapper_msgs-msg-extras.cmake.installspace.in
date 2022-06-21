@@ -1,0 +1,2 @@
+set(grasploc_wrapper_msgs_MESSAGE_FILES "msg/GrasplocAction.msg;msg/GrasplocActionGoal.msg;msg/GrasplocActionResult.msg;msg/GrasplocActionFeedback.msg;msg/GrasplocGoal.msg;msg/GrasplocResult.msg;msg/GrasplocFeedback.msg;msg/GrasplocRequestAction.msg;msg/GrasplocRequestActionGoal.msg;msg/GrasplocRequestActionResult.msg;msg/GrasplocRequestActionFeedback.msg;msg/GrasplocRequestGoal.msg;msg/GrasplocRequestResult.msg;msg/GrasplocRequestFeedback.msg")
+set(grasploc_wrapper_msgs_SERVICE_FILES "")

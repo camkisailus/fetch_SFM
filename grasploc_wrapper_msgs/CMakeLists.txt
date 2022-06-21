@@ -10,7 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 add_action_files(
   DIRECTORY action
-  FILES Grasploc.action
+  FILES Grasploc.action GrasplocRequest.action
 )
 
 generate_messages(

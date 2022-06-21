@@ -1,0 +1,8 @@
+prefix=/usr/local
+
+Name: grasploc_wrapper
+Description: Description of grasploc_wrapper
+Version: 0.0.0
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib 
+Requires: roscpp sensor_msgs std_msgs grasploc_wrapper_msgs

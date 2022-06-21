@@ -75,6 +75,7 @@ add_action_files(
   MoveBaseRequest.action
   TorsoControlRequest.action
   PointHeadRequest.action
+  PickRequest.action
 )
 
 ## Generate added messages and services with any dependencies listed here

@@ -1,6 +1,7 @@
 #include "ros/ros.h"
 #include "geometry_msgs/PoseArray.h"
 #include "grasploc_wrapper_msgs/GrasplocAction.h"
+#include "grasploc_wrapper_msgs/GrasplocRequestAction.h"
 #include "grasploc.h"
 #include "tf/transform_listener.h"
 #include "pcl_conversions/pcl_conversions.h"
@@ -8,22 +9,25 @@
 #include "sensor_msgs/PointCloud2.h"
 #include "std_msgs/Bool.h"
 #include "actionlib/client/simple_action_client.h"
+#include "actionlib/server/simple_action_server.h"
 
 
 class GrasplocNode
 {
   public:
-    GrasplocNode(): ac("grasploc", true)
+    GrasplocNode(): ac_("grasploc", true)
+      ,as_(nh_, "grasploc_requests", boost::bind(&GrasplocNode::grasp_callback, this, _1), false)
     {
       
       
       listener_ = new tf::TransformListener();
       grasp_pub_ = nh_.advertise<geometry_msgs::PoseArray>("grasploc", 1);
       pc_sub_ = nh_.subscribe("/head_camera/depth/points", 1, &GrasplocNode::pc_callback, this);
-      requestGraspSub_ = nh_.subscribe("request_grasp_pts", 1, &GrasplocNode::grasp_callback, this);
+      // requestGraspSub_ = nh_.subscribe("request_grasp_pts", 1, &GrasplocNode::grasp_callback, this);
+      as_.start();
       // Setup action client
       ROS_INFO("Waiting for grasploc action server");
-      ac.waitForServer();
+      ac_.waitForServer();
       ROS_INFO("Grasploc action server up");
     }
 
@@ -43,23 +47,33 @@ class GrasplocNode
       }
     }
 
-    void grasp_callback(const std_msgs::Bool::ConstPtr& msg) {
+    void grasp_callback(const grasploc_wrapper_msgs::GrasplocRequestGoalConstPtr& request) {
         
         ROS_INFO("Processing the pc to find graspable points");
-
+          grasploc_wrapper_msgs::GrasplocRequestResult res;
           // Construct request
           grasploc_wrapper_msgs::GrasplocGoal goal;
           goal.input_pc = current_pc_;
 
           // Call action server
-          ac.sendGoal(goal);
-          if (ac.waitForResult()) {
-            grasploc_wrapper_msgs::GrasplocResultConstPtr result = ac.getResult();
+          ac_.sendGoal(goal);
+          if (ac_.waitForResult()) {
+            grasploc_wrapper_msgs::GrasplocResultConstPtr result = ac_.getResult();
+            
+            res.graspable_points.header.frame_id = "base_link";
+            const int num_poses = result->graspable_points.poses.size();
+            for(int i = 0; i < num_poses; i++){
+              res.graspable_points.poses.push_back(result->graspable_points.poses.at(i));
+            }
+            // res.graspable_points.poses = result->graspable_points;
             // Publish message
             grasp_pub_.publish(result->graspable_points);
+            as_.setSucceeded(res);
           } else {
             ROS_WARN("Didn't find any graspable points");
           }
+          
+
     }
   
   private:
@@ -69,7 +83,8 @@ class GrasplocNode
     ros::Publisher grasp_pub_;
     ros::Subscriber pc_sub_;
     ros::Subscriber requestGraspSub_;
-    actionlib::SimpleActionClient<grasploc_wrapper_msgs::GrasplocAction> ac;
+    actionlib::SimpleActionClient<grasploc_wrapper_msgs::GrasplocAction> ac_;
+    actionlib::SimpleActionServer<grasploc_wrapper_msgs::GrasplocRequestAction> as_;
 };
 
 

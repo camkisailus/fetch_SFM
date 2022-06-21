@@ -176,7 +176,7 @@ class ParticleFilter(object):
             marker = Marker()
             marker.id = i
             marker.header.frame_id = 'map'
-            if self.label == 'grasp_spoon':
+            if self.label == 'grasp_bottle':
                 # Red Sphere
                 marker.color.r = 1
                 marker.type = marker.SPHERE
@@ -189,7 +189,7 @@ class ParticleFilter(object):
                 marker.color.r = 0.5
                 marker.color.b = 0.5
                 marker.type = marker.CUBE
-            elif self.label == 'spoon':
+            elif self.label == 'bottle':
                 # Red Cube
                 marker.color.r = 1
                 marker.type = marker.CUBE
@@ -294,77 +294,7 @@ class FrameParticleFilter(ParticleFilter):
             self.next_precondition = preconditions[0]
         else:
             self.preconditions = None
-    
-    def execute(self, msg):
-        # get gmm
-        mean, _ = self.gmm()
-        nav_goal_x = mean[0] - 1.5
-        nav_goal_y = mean[1]
-        nav_goal_t = 0.0
-        rospy.loginfo("Navigating to ({}, {}, {})".format(nav_goal_x, nav_goal_y, nav_goal_t))
-
-
-        move_base.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
-        head_action.look_at(mean[0], mean[1], mean[2])
-        mean, _ = self.gmm()
-        nav_goal_x = mean[0] - 0.8
-        nav_goal_y = mean[1]
-        nav_goal_t = 0.0
-        rospy.loginfo("Navigating to ({}, {}, {})".format(nav_goal_x, nav_goal_y, nav_goal_t))
-        move_base.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
-        # torso_action.move_to([0.35])
-        grasping_client.updateScene()
-        cube, grasps = grasping_client.getGraspableCube()
-        if cube == None:
-            rospy.logwarn("No graspable objects in scene")
-        else:
-            # rospy.loginfo(type(grasps))
-            grasping_client.pick(cube, grasps)
-            grasping_client.tuck()
-        # torso_action.move_to([0.2])
-
-        # # TODO: Change this to be Actionlib calls for each SF
-        # if self.label == 'grasp_spoon':
-        #     rospy.loginfo("Go to ({:.4f}, {:.4f}, {:.4f}".format(mean[0]+1.3, mean[1], math.pi))
-        #     move_base.go_to(mean[0]+1.3, mean[1], math.pi, 'map')
-        #     rospy.loginfo("Raising torso to {:.4f}".format(0.4))
-        #     torso_action.move_to([0.4])
-        #     rospy.loginfo("Look at ({:.4f}, {:.4f}, {:.4f})".format(mean[0], mean[1], mean[2]))
-        #     head_action.look_at(mean[0], mean[1], mean[2], 'map')
-        #     grasping_client.updateScene()
-        #     cube, grasps = grasping_client.getGraspableCube()
-            # if cube == None:
-            #     # perception failed
-            #     rospy.logwarn("perception failed")
-            # else:
-            #     grasping_client.publish_observation(cube)
-            #     grasping_client.pick(cube, grasps)
-            #     grasping_client.tuck()
-        #     move_base.go_to(0, 0, 0, 'map')
-        # elif self.label == 'stir_mug':
-        #     move_base.go_to(mean[0]+1.15, mean[1], math.pi, 'map')
-        #     torso_action.move_to([.4])
-        #     head_action.look_at(mean[0], mean[1], mean[2], 'map')
-        #     grasping_client.updateScene()
-        #     cube, grasps = grasping_client.getGraspableCube()
-        #     if cube == None:
-        #         # perception failed
-        #         rospy.logwarn("perception failed")
-        #     else:
-        #         grasping_client.publish_observation(cube)
-        #         grasping_client.pick(cube, grasps)
-        #         grasping_client.tuck()
-        #     state.action_history = ['grasp_spoon']            
-        #     rospy.sleep(rospy.Duration(5.0))
-        #     mean, _ = self.gmm()
-        #     move_base.go_to(mean[0], mean[1]+1.0, -float(math.pi/2.0), 'map')
-        #     torso_action.move_to([.4])
-        #     head_action.look_at(mean[0], mean[1], mean[2], 'map')
-
-
-
-
-    
+        
     def gmm(self):
         with self.lock:
             good_particles = []
@@ -383,31 +313,6 @@ class FrameParticleFilter(ParticleFilter):
     def add_precondition(self, p_filter, p_name):
         self.precondition_filters[p_name] = p_filter
 
-    # def reinvigorate(self, particle):
-    #     region = self.valid_regions[self.reinvigoration_idx % len(self.valid_regions)]
-    #     min_x, max_x, min_y, max_y = REGIONS[region]
-    #     particle[0] = min_x + np.random.random()*(max_x - min_x)
-    #     particle[1] = min_y + np.random.random()*(max_y - min_y)
-    #     particle[2] = 1.0
-    #     self.reinvigoration_idx+=1
-
-    #     return particle
-    
-    # def resample(self):
-    #     draw = np.random.choice(self.n, int(self.n*0.8), p=self.weights, replace=True)
-    #     temp_p = self.particles[:]
-    #     temp_w = self.weights[:]
-    #     self.particles[0, :] = copy.deepcopy(temp_p[np.argmax(self.weights)])
-    #     self.weights[0] = copy.deepcopy(temp_w[np.argmax(self.weights)])
-    #     self.particles[1, :] = self.jitter(copy.deepcopy(temp_p[np.argmax(self.weights)]))
-    #     self.weights[1] = copy.deepcopy(temp_w[np.argmax(self.weights)])
-    #     for i in range(len(draw)):
-    #         self.particles[i+2] = copy.deepcopy(temp_p[draw[i]])
-    #         self.weights[i+2] = copy.deepcopy(temp_w[draw[i]])
-
-    #     for j in range(2+len(draw), self.n):
-    #         self.particles[j] = self.reinvigorate(self.particles[j])
-    #         self.weights[j] = 1/self.n
     
     def context_potential(self, particle, state):
         i = 0
