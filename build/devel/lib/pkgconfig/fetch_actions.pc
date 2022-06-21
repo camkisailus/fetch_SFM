@@ -1,8 +1,0 @@
-prefix=/home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/src/build/devel
-
-Name: fetch_actions
-Description: Description of fetch_actions
-Version: 0.0.0
-Cflags: -I/home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/src/build/devel/include
-Libs: -L${prefix}/lib 
-Requires: message_runtime actionlib actionlib_msgs control_msgs geometry_msgs grasping_msgs move_base_msgs moveit_msgs moveit_python rospy rospy trajectory_msgs

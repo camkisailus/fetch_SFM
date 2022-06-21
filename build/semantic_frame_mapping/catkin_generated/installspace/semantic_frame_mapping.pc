@@ -1,8 +1,0 @@
-prefix=/usr/local
-
-Name: semantic_frame_mapping
-Description: Description of semantic_frame_mapping
-Version: 0.0.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 

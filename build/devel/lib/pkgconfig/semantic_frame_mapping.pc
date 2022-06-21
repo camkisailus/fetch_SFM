@@ -1,8 +1,0 @@
-prefix=/home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/src/build/devel
-
-Name: semantic_frame_mapping
-Description: Description of semantic_frame_mapping
-Version: 0.0.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 
