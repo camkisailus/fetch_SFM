@@ -1,0 +1,3 @@
+<launch>
+    <node pkg="fetch_actions" type="place.py" name="place_client_node" output="screen"/>
+</launch>

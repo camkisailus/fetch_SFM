@@ -7,7 +7,7 @@ from utils import *
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Point
 from std_msgs.msg import String
-from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal
+from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal, PlaceRequestAction, PlaceRequestGoal
 
 # room number: min_x, max_x, min_y, max_y, min_z, max_z
 # REGIONS = {
@@ -46,6 +46,7 @@ class ActionClient():
         self.torso_client = actionlib.SimpleActionClient("kisailus_torso_controller", TorsoControlRequestAction)
         self.point_head_client = actionlib.SimpleActionClient("kisailus_point_head", PointHeadRequestAction)
         self.pick_client = actionlib.SimpleActionClient("kisailus_pick", PickRequestAction)
+        self.place_client = actionlib.SimpleActionClient("kisailus_place", PlaceRequestAction)
         self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
         self.point_head_pub = rospy.Publisher('/point_head/at', Point, queue_size=10)
         
@@ -76,6 +77,12 @@ class ActionClient():
         request.tmp = 0
         self.pick_client.send_goal(request)
         self.pick_client.wait_for_result()
+    
+    def place(self):
+        request = PlaceRequestGoal()
+        request.tmp = 0
+        self.place_client.send_goal(request)
+        self.place_client.wait_for_result()
         
     
     
@@ -127,20 +134,22 @@ class SFMClient():
     
     def execute_frame(self, frame_name):
         rospy.loginfo("SFM: Got request to grasp_bottle")
-        self.update = False # Stop constant update while executing
-        mean, _ = self.frame_filters['grasp_bottle'].bgmm()
-        nav_goal_x = mean[0] - 0.7
-        nav_goal_y = mean[1] - 0.3
-        nav_goal_t = 0.0
-        rospy.loginfo("SFM: Navigating to ({:.4f}, {:.4f}, {:.4f})".format(nav_goal_x, nav_goal_y, nav_goal_t))
-        self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
-        rospy.loginfo("SFM: Raising toros to 0.3")
-        self.ac.move_torso(0.3)
-        rospy.loginfo("SFM: Pointing head to (-1.5, -0.7, 0.6)")
-        self.ac.point_head(-1.5, -0.8, 0.6)
-        rospy.loginfo("SFM: Picking")
+        # self.update = False # Stop constant update while executing
+        # mean, _ = self.frame_filters['grasp_bottle'].bgmm()
+        # nav_goal_x = mean[0] - 0.7
+        # nav_goal_y = mean[1] - 0.3
+        # nav_goal_t = 0.0
+        # rospy.loginfo("SFM: Navigating to ({:.4f}, {:.4f}, {:.4f})".format(nav_goal_x, nav_goal_y, nav_goal_t))
+        # self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
+        # rospy.loginfo("SFM: Raising toros to 0.3")
+        # self.ac.move_torso(0.3)
+        # rospy.loginfo("SFM: Pointing head to (-1.5, -0.7, 0.6)")
+        # self.ac.point_head(-1.5, -0.8, 0.6)
+        # rospy.loginfo("SFM: Picking")
         self.ac.pick()
-        rospy.loginfo("SFM: Done")
+        rospy.loginfo("SFM: Grasped bottle")
+        self.ac.place()
+        # self.ac.place()
         self.update = True
 
         

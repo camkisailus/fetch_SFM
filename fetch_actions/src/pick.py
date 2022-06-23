@@ -45,10 +45,12 @@ class GraspClient:
         result = self.gloc_client.get_result()
         rospy.loginfo("PICK_NODE: Got result from gloc_!")
         self.update_scene()
-        rospy.sleep(5)
+        rospy.sleep(1)
         self.send_grasps(result.graspable_points.poses)
+        # self.scene.clear()
         rospy.loginfo("PICK_NODE: Done!")
         self.request_server.set_succeeded()
+
 
     def send_grasps(self, grasp_poses):
         obj_to_grasp = self.graspable_objs[0]
@@ -124,7 +126,14 @@ class GraspClient:
             obs_msg.label = 'bottle'
             self.observation_pub.publish(obs_msg)
             rospy.loginfo("Adding {} to planning scene.".format(obj.object.name))
-            self.scene.add_box(obj.object.name, obj_pose, (obj.object.primitives[0].dimensions[0], obj.object.primitives[0].dimensions[1], obj.object.primitives[0].dimensions[2]))
+            rospy.loginfo("dims: {}".format(obj.object.primitives[0].dimensions))
+            x_dim = obj.object.primitives[0].dimensions[0]
+            y_dim = obj.object.primitives[0].dimensions[1]
+            try:
+                z_dim = obj.object.primitives[0].dimensions[2]
+            except IndexError:
+                z_dim = 0.15
+            self.scene.add_box(obj.object.name, obj_pose, (x_dim, y_dim, z_dim))
         idx = -1
         for surface in find_result.support_surfaces:
             if surface.primitive_poses[0].position.z <= 0.25:
@@ -141,6 +150,8 @@ class GraspClient:
         self.update_scene()
         rospy.sleep(5)
         self.send_grasps(msg.poses)
+        self.scene.clear()
+        rospy.sleep(2)
         
 
 

@@ -3,4 +3,5 @@
     <include file="$(find fetch_actions)/launch/point_head.launch"/>
     <include file="$(find fetch_actions)/launch/pick.launch"/>
     <include file="$(find fetch_actions)/launch/torso_controller.launch"/>
+    <include file="$(find fetch_actions)/launch/place.launch"/>
 </launch>
