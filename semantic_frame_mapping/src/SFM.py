@@ -21,11 +21,13 @@ from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoC
 ## LAB 06-21-22
 REGIONS = {
     'table1': (-2.4, -1.5, -1.25, -0.5, 0.6, 0.8),
-    'table2': (-5.75, -4.75, -2.25, -1.5, 0.6, 0.8)
+    'table2': (-5.75, -4.75, -2.25, -1.5, 0.6, 0.8),
+    'elevator': (-1.2, -1.2, -18.5, -18.5, 1, 1),
 }
+# ELEVATOR = (-1.0, -18.7, 3.14)
 class State():
     def __init__(self):
-        self.action_history = ['idle']
+        self.action_history = ['go_second_floor']
 
 class Region():
     def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z):
@@ -88,8 +90,9 @@ class SFMClient():
         for name, bounds in REGIONS.items():
             self.regions[name] = Region(name, bounds[0], bounds[1],bounds[2], bounds[3], bounds[4], bounds[5])
         self.bottle_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1']], label='bottle')
+        self.elevator_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['elevator']], label='elevator')
         # self.mug_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table2']], label='mug')
-        self.object_filters = {'bottle':self.bottle_particle_filter}#, 'mug':self.mug_particle_filter}
+        self.object_filters = {'bottle':self.bottle_particle_filter, 'elevator':self.elevator_particle_filter}#, 'mug':self.mug_particle_filter}
         self.state = State()
         self.frame_filters = {}
         self.frame_to_label_dict = {}
@@ -97,6 +100,8 @@ class SFMClient():
         for i, frame in enumerate(self.kb):
             self.frame_to_label_dict[i] = frame.name
             valid_regions = [self.regions['table1'], self.regions['table2']]
+            if frame.name.startswith('go_elevator'):
+                valid_regions = [self.regions['elevator']]
             filter = FrameParticleFilter(50, frame.name, frame.preconditions, frame.core_frame_elements, valid_regions)
             for cfe in frame.core_frame_elements:
                 filter.add_frame_element(self.object_filters[cfe], cfe)
@@ -126,29 +131,35 @@ class SFMClient():
             filter.publish()
     
     def execute_frame(self, frame_name):
-        rospy.loginfo("SFM: Got request to grasp_bottle")
-        self.update = False # Stop constant update while executing
-        mean, _ = self.frame_filters['grasp_bottle'].bgmm()
-        nav_goal_x = mean[0] - 0.7
-        nav_goal_y = mean[1] - 0.3
-        nav_goal_t = 0.0
-        rospy.loginfo("SFM: Navigating to ({:.4f}, {:.4f}, {:.4f})".format(nav_goal_x, nav_goal_y, nav_goal_t))
-        self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
-        rospy.loginfo("SFM: Raising toros to 0.3")
-        self.ac.move_torso(0.3)
-        rospy.loginfo("SFM: Pointing head to (-1.5, -0.7, 0.6)")
-        self.ac.point_head(-1.5, -0.8, 0.6)
-        rospy.loginfo("SFM: Picking")
+        # rospy.loginfo("Going to elevator")
+        # mean, _ = self.frame_filters['go_elevator'].bgmm()
+        # nav_goal_x = mean[0]
+        # nav_goal_y = mean[1]
+        # nav_goal_t = 3.1415192
+        # self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
+        # rospy.loginfo("SFM: Got request to grasp_bottle")
+        # self.update = False # Stop constant update while executing
+        # mean, _ = self.frame_filters['grasp_bottle'].bgmm()
+        # nav_goal_x = mean[0] - 0.7
+        # nav_goal_y = mean[1] - 0.3
+        # nav_goal_t = 0.0
+        # rospy.loginfo("SFM: Navigating to ({:.4f}, {:.4f}, {:.4f})".format(nav_goal_x, nav_goal_y, nav_goal_t))
+        # self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
+        # rospy.loginfo("SFM: Raising toros to 0.3")
+        # self.ac.move_torso(0.3)
+        # rospy.loginfo("SFM: Pointing head to (-1.5, -0.7, 0.6)")
+        # self.ac.point_head(-1.5, -0.8, 0.6)
+        # rospy.loginfo("SFM: Picking")
         self.ac.pick()
-        rospy.loginfo("SFM: Done")
-        self.update = True
+        # rospy.loginfo("SFM: Done")
+        # self.update = True
 
         
 
 if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
     foo = SFMClient()
-    r = rospy.Rate(1)
+    r = rospy.Rate(10)
     # i = 0
     while not rospy.is_shutdown():
         # rospy.loginfo("Updating...")

@@ -135,7 +135,6 @@ class ParticleFilter(object):
         #     temp_p[i] = self.reinvigorate()
         # self.particles = copy.deepcopy(temp_p)
         # self.weights = 1/self.n * np.ones([self.n])
-
         draw = np.random.choice(self.n, int(self.n*0.8), p=self.weights, replace=True)
         temp_p = self.particles[:]
         temp_w = self.weights[:]
@@ -198,6 +197,21 @@ class ParticleFilter(object):
                 # Blue Cube
                 marker.color.b = 1
                 marker.type = marker.CUBE
+            elif self.label == 'go_elevator':
+                marker.color.r = 235/255
+                marker.color.g = 64/255
+                marker.color.b = 52/255
+                marker.type = marker.CYLINDER
+            elif self.label == 'go_first_floor':
+                marker.color.r = 52/255
+                marker.color.g = 235/255
+                marker.color.b = 79/255
+                marker.type = marker.CYLINDER
+            elif self.label == 'go_second_floor':
+                marker.color.r = 51/255
+                marker.color.g = 158/255
+                marker.color.b = 235/255
+                marker.type = marker.CYLINDER
             
             marker.action = marker.ADD
             marker.scale.x = 0.2
@@ -365,6 +379,8 @@ class FrameParticleFilter(ParticleFilter):
                     break
                 else:
                     i+=1
+        if self.label == 'go_first_floor':
+            i-=1
         potential = 0
         core_elem_weight_mod = 1
         while i < len(self.frame_elements):

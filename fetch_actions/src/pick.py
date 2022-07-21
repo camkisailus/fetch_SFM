@@ -4,9 +4,10 @@ import rospy
 import sys
 import actionlib
 import tf
+import copy
 
 from moveit_commander import PlanningSceneInterface, roscpp_initialize, roscpp_shutdown, MoveGroupCommander
-from geometry_msgs.msg import PoseStamped, Point
+from geometry_msgs.msg import PoseStamped, Point, Pose
 from moveit_msgs.msg import Grasp
 from trajectory_msgs.msg import JointTrajectoryPoint
 from grasping_msgs.msg import FindGraspableObjectsAction, FindGraspableObjectsGoal
@@ -38,17 +39,52 @@ class GraspClient:
     
     def callback(self, request):
         rospy.loginfo("PICK_NODE: Got a request..")
-        goal = GrasplocRequestGoal()
-        goal.tmp = 0
-        self.gloc_client.send_goal(goal)
-        self.gloc_client.wait_for_result()
-        result = self.gloc_client.get_result()
-        rospy.loginfo("PICK_NODE: Got result from gloc_!")
-        self.update_scene()
-        rospy.sleep(5)
-        self.send_grasps(result.graspable_points.poses)
-        rospy.loginfo("PICK_NODE: Done!")
-        self.request_server.set_succeeded()
+        self.push_elevator()
+        # goal = GrasplocRequestGoal()
+        # goal.tmp = 0
+        # self.gloc_client.send_goal(goal)
+        # self.gloc_client.wait_for_result()
+        # result = self.gloc_client.get_result()
+        # rospy.loginfo("PICK_NODE: Got result from gloc_!")
+        # self.update_scene()
+        # rospy.sleep(5)
+        # self.send_grasps(result.graspable_points.poses)
+        # rospy.loginfo("PICK_NODE: Done!")
+        # self.request_server.set_succeeded()
+    
+    def push_elevator(self):
+        # Close to button
+        pose_goal = Pose()
+        pose_goal.orientation.w = 1.0
+        pose_goal.position.x = 0.5
+        pose_goal.position.y = -0.4
+        pose_goal.position.z = 1.3
+
+        if self.go_to_pose_goal(pose_goal):
+            # Cartesian move to push button
+            waypoints = []
+            scale = 1
+            pose_goal.position.x += scale * 0.1  # First move up (z)
+            waypoints.append(copy.deepcopy(pose_goal))
+            for wp in waypoints:
+                print(wp)
+            (plan, _) = self.arm.compute_cartesian_path(
+                waypoints, 0.01, 0.0  # waypoints to follow  # eef_step
+            )  # jump_threshold
+
+            self.arm.execute(plan, wait=True)
+            self.request_server.set_succeeded()
+            return
+        self.request_server.set_aborted()
+
+    
+    def go_to_pose_goal(self, pose):
+        self.arm.set_pose_target(pose)
+        success = self.arm.go(wait=True)
+        self.arm.stop()
+        self.arm.clear_pose_targets()
+        return success
+
 
     def send_grasps(self, grasp_poses):
         obj_to_grasp = self.graspable_objs[0]
