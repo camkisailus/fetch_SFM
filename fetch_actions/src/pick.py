@@ -24,13 +24,13 @@ class GraspClient:
     def __init__(self):
         roscpp_initialize(sys.argv)
         self.tf_listener = tf.TransformListener()
-        # rospy.logwarn("TF_LISTENER: {}".format(self.tf_listener))
+        rospy.logwarn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TF_LISTENER: {}".format(self.tf_listener))
         self.scene = PlanningSceneInterface()
-        self.arm = MoveGroupCommander('arm', wait_for_servers=30)
-        self.find_client = actionlib.SimpleActionClient('basic_grasping_perception/find_objects', FindGraspableObjectsAction)
-        self.find_client.wait_for_server()
-        self.gloc_client = actionlib.SimpleActionClient('grasploc_requests', GrasplocRequestAction)
-        self.gloc_client.wait_for_server()
+        self.arm = MoveGroupCommander('arm_with_torso', wait_for_servers=30)
+        # self.find_client = actionlib.SimpleActionClient('basic_grasping_perception/find_objects', FindGraspableObjectsAction)
+        # self.find_client.wait_for_server()
+        # self.gloc_client = actionlib.SimpleActionClient('grasploc_requests', GrasplocRequestAction)
+        # self.gloc_client.wait_for_server()
         self.request_server = actionlib.SimpleActionServer('kisailus_pick', PickRequestAction, self.callback, auto_start=False)
         self.request_server.start()
         self.observation_pub = rospy.Publisher("scene/observations", ObjectDetection, queue_size=10)
@@ -39,7 +39,14 @@ class GraspClient:
     
     def callback(self, request):
         rospy.loginfo("PICK_NODE: Got a request..")
-        self.push_elevator()
+        self.push_elevator(request.pose)
+
+        """
+        (-5.135110404488336, -1.4681997482711528, 1.1547365888088212)
+        [-5.05286094 -1.49557021  1.12638515]
+
+        [-5.10183395 -1.44774998  1.16170837]
+        """
         # goal = GrasplocRequestGoal()
         # goal.tmp = 0
         # self.gloc_client.send_goal(goal)
@@ -52,22 +59,28 @@ class GraspClient:
         # rospy.loginfo("PICK_NODE: Done!")
         # self.request_server.set_succeeded()
     
-    def push_elevator(self):
+    def push_elevator(self, goal):
         # Close to button
-        pose_goal = Pose()
-        pose_goal.orientation.w = 1.0
-        pose_goal.position.x = 0.5
-        pose_goal.position.y = -0.4
-        pose_goal.position.z = 1.3
-
-        if self.go_to_pose_goal(pose_goal):
+        pose_goal = PoseStamped()
+        pose_goal.pose = goal
+        pose_goal.pose.position.x -= 0.35
+        pose_goal.pose.position.z += (0.13)
+        # pose_goal.pose.orientation.w = 1.0
+        # pose_goal.pose.position.x = goal.x
+        # pose_goal.pose.position.y = goal.y
+        # pose_goal.pose.position.z = goal.z
+        pose_goal.header.frame_id = "map"
+        self.tf_listener.waitForTransform("base_link", "map", rospy.Time.now(), rospy.Duration(90))
+        bl_pose_goal = self.tf_listener.transformPose("base_link", pose_goal)
+        rospy.logwarn(bl_pose_goal)
+        
+        if self.go_to_pose_goal(bl_pose_goal):
             # Cartesian move to push button
             waypoints = []
-            scale = 1
-            pose_goal.position.x += scale * 0.1  # First move up (z)
-            waypoints.append(copy.deepcopy(pose_goal))
-            for wp in waypoints:
-                print(wp)
+            scale = 0.01
+            for i in range(19):
+                bl_pose_goal.pose.position.x += scale * 1  # Push
+                waypoints.append(copy.deepcopy(bl_pose_goal.pose))
             (plan, _) = self.arm.compute_cartesian_path(
                 waypoints, 0.01, 0.0  # waypoints to follow  # eef_step
             )  # jump_threshold

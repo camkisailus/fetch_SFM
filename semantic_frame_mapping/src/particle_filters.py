@@ -49,9 +49,17 @@ class StaticObject(object):
         self.marker.pose.position.z = self.z
 
         self.marker_array.markers.append(self.marker)
-
+    
     def publish(self):
         self.marker_pub.publish(self.marker_array)
+    
+    def update_position(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
+        self.marker.pose.position.x = self.x
+        self.marker.pose.position.y = self.y
+        self.marker.pose.position.z = self.z
 
 class ParticleFilter(object):
     def __init__(self, n, label, valid_regions):
@@ -59,8 +67,8 @@ class ParticleFilter(object):
         self.Sigma = np.array([[0.02, 0, 0], [0, 0.02, 0], [0, 0, 0.02]])
         self.particles = np.zeros([n,3])
         self.weights = 1.0/self.n * np.ones([n])
-        print(label)
         self.valid_regions = [vd for vd in valid_regions]
+        self.lock = RLock()
         # if len(valid_regions) == 0:
         #     self.valid_regions = [region_id for region_id in REGIONS.keys()]
         # else:
@@ -70,6 +78,21 @@ class ParticleFilter(object):
         # self.marker_pub = rospy.Publisher('filters/{}'.format(label), MarkerArray, queue_size=10)
         for i in range(self.n):
             self.particles[i] = self.reinvigorate(self.particles[i])
+    
+    def bgmm(self):
+        with self.lock:
+            bgm = BayesianGaussianMixture(n_components=20, n_init=10).fit(self.particles)
+            bgm_weights = bgm.weights_
+            bgm_means = bgm.means_
+            # rospy.loginfo("Cluster weights: {}".format(bgm_weights))
+            # rospy.loginfo("Cluster means: {}".format(bgm_means))
+            n_clusters_ = (np.round(bgm_weights, 2) > 0).sum()
+            # rospy.loginfo('Estimated number of clusters: ' + str(n_clusters_))
+            index_max = np.argmax(bgm_weights)
+            # rospy.loginfo("Max cluster weight idx: {}".format(index_max))
+            # rospy.loginfo("Max cluster weight: {}".format(bgm_weights[index_max]))
+            # rospy.loginfo("Max cluster mean: {}".format(bgm_means[index_max]))
+            return bgm_means[index_max], bgm.covariances_
         
     def reinvigorate(self, particle):
         region = self.valid_regions[self.reinvigoration_idx % len(self.valid_regions)]
@@ -189,14 +212,6 @@ class ParticleFilter(object):
                 marker.color.r = 0.5
                 marker.color.b = 0.5
                 marker.type = marker.CUBE
-            elif self.label == 'bottle':
-                # Red Cube
-                marker.color.r = 1
-                marker.type = marker.CUBE
-            elif self.label == 'mug':
-                # Blue Cube
-                marker.color.b = 1
-                marker.type = marker.CUBE
             elif self.label == 'go_elevator':
                 marker.color.r = 235/255
                 marker.color.g = 64/255
@@ -212,6 +227,22 @@ class ParticleFilter(object):
                 marker.color.g = 158/255
                 marker.color.b = 235/255
                 marker.type = marker.CYLINDER
+            elif self.label == 'bottle':
+                # Red Cube
+                marker.color.r = 1
+                marker.type = marker.CUBE
+            elif self.label == 'mug':
+                # Blue Cube
+                marker.color.b = 1
+                marker.type = marker.CUBE
+            elif self.label == 'elevator':
+                marker.color.r = 0.5
+                marker.color.b = 0.5
+                marker.type = marker.CUBE
+            elif self.label == 'elevator_button':
+                marker.color.r = 1
+                marker.type = marker.CUBE
+            
             
             marker.action = marker.ADD
             marker.scale.x = 0.2
@@ -231,7 +262,7 @@ class ParticleFilter(object):
 class ObjectParticleFilter(ParticleFilter):
     def __init__(self, n, valid_regions, label):
         super(ObjectParticleFilter, self).__init__(n, label, valid_regions)
-        self.ar_to_obj_map = {0: 'mug'}
+        self.ar_to_obj_map = {0: 'mug', 1:'elevator_button'}
         self.observation_sub = rospy.Subscriber('scene/observations', ObjectDetection, self.add_observation, queue_size=1)
         self.apriltag_sub = rospy.Subscriber('tag_detections', AprilTagDetectionArray, self.handle_ar_detection, queue_size=1)
         
@@ -249,19 +280,21 @@ class ObjectParticleFilter(ParticleFilter):
     def handle_ar_detection(self, msg):
         # rospy.loginfo("Got AR tag detection")
         for detection in msg.detections:
-            if(len(self.observations) > 0):
-                return
+            # if(len(self.observations) > 0):
+            #     print(returning)
+            #     return
             obj_label = self.ar_to_obj_map[detection.id[0]]
             if obj_label == self.label:
-                pt = PointStamped()
-                pt.header.frame_id = detection.pose.header.frame_id
-                pt.point.x = detection.pose.pose.pose.position.x
-                pt.point.y = detection.pose.pose.pose.position.y
-                pt.point.z = detection.pose.pose.pose.position.z
-                # transformed_pt = tf_listener.transformPoint('map', pt)
-                obj = StaticObject(obj_label, transformed_pt.point.x, transformed_pt.point.y, transformed_pt.point.z)
-                print("Adding observation: {} to filter: {}".format(obj.label, self.label))
-                self.observations.append(obj)
+                new_obj = True
+                for obs in self.observations:
+                    if obs.label == obj_label:
+                        # print("Updating observation: {} to filter: {}".format(obj_label, self.label))
+                        obs.update_position(detection.pose.pose.pose.position.x, detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z)
+                        new_obj = False
+                if new_obj:
+                    obj = StaticObject(obj_label, detection.pose.pose.pose.position.x, detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z)
+                    # print("Adding observation: {} to filter: {}".format(obj.label, self.label))
+                    self.observations.append(obj)
             
         
     def add_observation(self, observation):
@@ -283,7 +316,7 @@ class ObjectParticleFilter(ParticleFilter):
             err_y = particle[1] - observation.y
             err_z = particle[2] - observation.z
             dist = math.sqrt(err_x**2 + err_y**2 + err_z**2)
-            phi = math.exp(-1 * dist)
+            phi = math.exp(-100 * dist)
             if i == 0:
                 max_phi = phi
             else:
@@ -302,7 +335,7 @@ class ObjectParticleFilter(ParticleFilter):
 class FrameParticleFilter(ParticleFilter):
     def __init__(self, n, label, preconditions, core_frame_elements, valid_regions):
         super(FrameParticleFilter, self).__init__(n, label, valid_regions)
-        self.lock = RLock()
+        
         self.marker_pub = rospy.Publisher('filter/particles/{}'.format(label), MarkerArray, queue_size=10)
         # self.execute_sub = rospy.Subscriber('{}/execute'.format(self.label), Bool, self.execute, queue_size=1)
         self.frame_element_filters = {frame_element:None for frame_element in core_frame_elements}
@@ -314,20 +347,6 @@ class FrameParticleFilter(ParticleFilter):
         else:
             self.preconditions = None
         
-    def bgmm(self):
-        with self.lock:
-            bgm = BayesianGaussianMixture(n_components=20, n_init=10).fit(self.particles)
-            bgm_weights = bgm.weights_
-            bgm_means = bgm.means_
-            # rospy.loginfo("Cluster weights: {}".format(bgm_weights))
-            # rospy.loginfo("Cluster means: {}".format(bgm_means))
-            n_clusters_ = (np.round(bgm_weights, 2) > 0).sum()
-            # rospy.loginfo('Estimated number of clusters: ' + str(n_clusters_))
-            index_max = np.argmax(bgm_weights)
-            # rospy.loginfo("Max cluster weight idx: {}".format(index_max))
-            # rospy.loginfo("Max cluster weight: {}".format(bgm_weights[index_max]))
-            # rospy.loginfo("Max cluster mean: {}".format(bgm_means[index_max]))
-            return bgm_means[index_max], bgm.covariances_
         
     def gmm(self):
         with self.lock:
