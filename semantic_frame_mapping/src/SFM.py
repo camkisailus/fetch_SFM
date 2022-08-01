@@ -19,11 +19,11 @@ from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoC
 #     'table2': (5, 6, 5, 6, 5, 6),
 # }
 ## LAB 06-21-22
-# REGIONS = {
-#     'table1': (-2.4, -1.5, -1.25, -0.5, 0.6, 0.8),
-#     'table2': (-5.75, -4.75, -2.25, -1.5, 0.6, 0.8),
-#     'elevator': (-1.2, -1.2, -18.5, -18.5, 1, 1),
-# }
+REGIONS = {
+    'table1': (-2.2, -1.2, -1.25, -0.5, 0.6, 0.8),
+    'table2': (-5.75, -4.75, -2.25, -1.5, 0.6, 0.8),
+    'elevator': (-1.2, -1.2, -18.5, -18.5, 1, 1),
+}
 ## LAB HALLWAY
 # ELEVATOR = (-1.0, -18.7, 3.14)
 
@@ -38,12 +38,16 @@ from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoC
 # }
 
 ## HALLWAY 07-24-22
-REGIONS = {
-    'elevator': (-7, -8, 18, 19, 0, 3)
-}
+# REGIONS = {
+#     'elevator': (-7, -8, 18, 19, 0, 3)
+# }
 class State():
     def __init__(self):
-        self.action_history = ['go_second_floor']
+        self.action_history = ['grasp_spoon']
+        self.ah_sub = rospy.Subscriber("/add_action_to_action_history", String, self.add_action_to_action_history)
+    
+    def add_action_to_action_history(self, action_taken):
+        pass
 
 class Region():
     def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z):
@@ -89,11 +93,14 @@ class ActionClient():
         self.point_head_client.send_goal(request)
         self.point_head_client.wait_for_result()
     
-    def pick(self, goal):
+    def pick(self, mode=0, goal=None):
+        if mode == 1:
+            assert(goal is not None)
+            request.goal = goal
         request = PickRequestGoal()
-        request.mode = 0
-        request.pose = goal
+        request.mode = mode
         self.pick_client.send_goal(request)
+        rospy.loginfo("Sent pick_client goal")
         self.pick_client.wait_for_result()
         
     
@@ -106,20 +113,19 @@ class SFMClient():
         self.regions = {}
         for name, bounds in REGIONS.items():
             self.regions[name] = Region(name, bounds[0], bounds[1],bounds[2], bounds[3], bounds[4], bounds[5])
-        # self.bottle_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1']], label='bottle')
-        # self.elevator_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['elevator']], label='elevator')
-        self.elevator_button_pf = ObjectParticleFilter(50, valid_regions=[self.regions['elevator']], label='elevator_button')
-        # self.mug_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table2']], label='mug')
-        self.object_filters = {  'elevator_button':self.elevator_button_pf}#, 'mug':self.mug_particle_filter}
+        self.bottle_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1'], self.regions['table2']], label='bottle')
+        self.bowl_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1']], label='bowl')
+        self.spoon_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1']], label='spoon')
+        self.object_filters = {'bottle':self.bottle_particle_filter, 'bowl':self.bowl_particle_filter, 'spoon':self.spoon_particle_filter}
         self.state = State()
         self.frame_filters = {}
         self.frame_to_label_dict = {}
         self.update = True
         for i, frame in enumerate(self.kb):
             self.frame_to_label_dict[i] = frame.name
-            # valid_regions = [self.regions['table1'], self.regions['table2']]
+            valid_regions = [self.regions['table1'], self.regions['table2']]
             # if frame.name.startswith('go_elevator'):
-            valid_regions = [self.regions['elevator']]
+            # valid_regions = [self.regions['elevator']]
             filter = FrameParticleFilter(50, frame.name, frame.preconditions, frame.core_frame_elements, valid_regions)
             for cfe in frame.core_frame_elements:
                 filter.add_frame_element(self.object_filters[cfe], cfe)
@@ -149,35 +155,43 @@ class SFMClient():
             filter.publish()
     
     def execute_frame(self, frame_name):
-        mean, _ = self.frame_filters['call_elevator'].bgmm()
-        bmean, _ = self.object_filters['elevator_button'].bgmm()
-        rospy.loginfo('button mean: {}'.format(bmean))
-        rospy.loginfo('action mean: {}'.format(mean))
-        # rospy.loginfo("Going to elevator")
-        # mean, _ = self.frame_filters['go_elevator'].bgmm()
-        # nav_goal_x = mean[0]
-        # nav_goal_y = mean[1]
-        # nav_goal_t = 3.1415192
-        # self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
-        # rospy.loginfo("SFM: Got request to grasp_bottle")
-        # self.update = False # Stop constant update while executing
-        # mean, _ = self.frame_filters['grasp_bottle'].bgmm()
-        # nav_goal_x = mean[0] - 0.7
-        # nav_goal_y = mean[1] - 0.3
-        # nav_goal_t = 0.0
-        # rospy.loginfo("SFM: Navigating to ({:.4f}, {:.4f}, {:.4f})".format(nav_goal_x, nav_goal_y, nav_goal_t))
-        # self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
-        # rospy.loginfo("SFM: Raising toros to 0.3")
-        # self.ac.move_torso(0.3)
-        # rospy.loginfo("SFM: Pointing head to (-1.5, -0.7, 0.6)")
-        # self.ac.point_head(-1.5, -0.8, 0.6)
-        p = Pose()
-        p.position.x = mean[0]
-        p.position.y = mean[1]
-        p.position.z = mean[2]
-        p.orientation.w = 1
-        rospy.loginfo("SFM: Send pick command w goal pose: {}".format(p))
-        self.ac.pick(p)
+        if frame_name.data == 'grasp_bottle':
+            rospy.loginfo("Got request to grasp_bottle")
+            self.ac.pick()
+        elif frame_name.data == 'pour_bottle':
+            rospy.loginfo("POUR BOTTLE")
+        else:
+            rospy.logwarn("INVALID action")
+
+        # mean, _ = self.frame_filters['call_elevator'].bgmm()
+        # bmean, _ = self.object_filters['elevator_button'].bgmm()
+        # rospy.loginfo('button mean: {}'.format(bmean))
+        # rospy.loginfo('action mean: {}'.format(mean))
+        # # rospy.loginfo("Going to elevator")
+        # # mean, _ = self.frame_filters['go_elevator'].bgmm()
+        # # nav_goal_x = mean[0]
+        # # nav_goal_y = mean[1]
+        # # nav_goal_t = 3.1415192
+        # # self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
+        # # rospy.loginfo("SFM: Got request to grasp_bottle")
+        # # self.update = False # Stop constant update while executing
+        # # mean, _ = self.frame_filters['grasp_bottle'].bgmm()
+        # # nav_goal_x = mean[0] - 0.7
+        # # nav_goal_y = mean[1] - 0.3
+        # # nav_goal_t = 0.0
+        # # rospy.loginfo("SFM: Navigating to ({:.4f}, {:.4f}, {:.4f})".format(nav_goal_x, nav_goal_y, nav_goal_t))
+        # # self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
+        # # rospy.loginfo("SFM: Raising toros to 0.3")
+        # # self.ac.move_torso(0.3)
+        # # rospy.loginfo("SFM: Pointing head to (-1.5, -0.7, 0.6)")
+        # # self.ac.point_head(-1.5, -0.8, 0.6)
+        # p = Pose()
+        # p.position.x = mean[0]
+        # p.position.y = mean[1]
+        # p.position.z = mean[2]
+        # p.orientation.w = 1
+        # rospy.loginfo("SFM: Send pick command w goal pose: {}".format(p))
+        # self.ac.pick(p)
         # rospy.loginfo("SFM: Done")
         # self.update = True
 

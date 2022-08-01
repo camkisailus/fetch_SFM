@@ -199,49 +199,79 @@ class ParticleFilter(object):
             marker = Marker()
             marker.id = i
             marker.header.frame_id = 'map'
-            if self.label == 'grasp_bottle':
-                # Red Sphere
-                marker.color.r = 1
-                marker.type = marker.SPHERE
-            elif self.label == 'grasp_mug':
-                # Blue Sphere
-                marker.color.b = 1
-                marker.type = marker.SPHERE
-            elif self.label == 'stir_mug':
-                # Purple Cube
-                marker.color.r = 0.5
-                marker.color.b = 0.5
-                marker.type = marker.CUBE
-            elif self.label == 'go_elevator':
-                marker.color.r = 235/255
-                marker.color.g = 64/255
-                marker.color.b = 52/255
-                marker.type = marker.CYLINDER
-            elif self.label == 'go_first_floor':
-                marker.color.r = 52/255
-                marker.color.g = 235/255
-                marker.color.b = 79/255
-                marker.type = marker.CYLINDER
-            elif self.label == 'go_second_floor':
-                marker.color.r = 51/255
-                marker.color.g = 158/255
-                marker.color.b = 235/255
-                marker.type = marker.CYLINDER
-            elif self.label == 'bottle':
-                # Red Cube
+            
+            if self.label == 'bottle':
+                # red cube
                 marker.color.r = 1
                 marker.type = marker.CUBE
-            elif self.label == 'mug':
-                # Blue Cube
+            elif self.label == 'spoon':
+                # blue cube
                 marker.color.b = 1
                 marker.type = marker.CUBE
-            elif self.label == 'elevator':
-                marker.color.r = 0.5
-                marker.color.b = 0.5
+            elif self.label == 'bowl':
+                # green cube
+                marker.color.g = 1
                 marker.type = marker.CUBE
-            elif self.label == 'elevator_button':
+            elif self.label == 'grasp_bottle':
+                # red sphere
                 marker.color.r = 1
-                marker.type = marker.CUBE
+                marker.type = marker.SPHERE
+            elif self.label == 'grasp_spoon':
+                # blue sphere
+                marker.color.b = 1
+                marker.type = marker.SPHERE
+            elif self.label == 'stir_bowl':
+                # green sphere
+                marker.color.g = 1
+                marker.type = marker.SPHERE
+            
+
+
+
+
+            # if self.label == 'grasp_bottle':
+            #     # Red Sphere
+            #     marker.color.r = 1
+            #     marker.type = marker.SPHERE
+            # elif self.label == 'grasp_spoon':
+            #     # Blue Sphere
+            #     marker.color.b = 1
+            #     marker.type = marker.SPHERE
+            # elif self.label == 'stir_bowl':
+            #     # Purple Cube
+            #     marker.color.r = 0.5
+            #     marker.color.b = 0.5
+            #     marker.type = marker.CUBE
+            # elif self.label == 'go_elevator':
+            #     marker.color.r = 235/255
+            #     marker.color.g = 64/255
+            #     marker.color.b = 52/255
+            #     marker.type = marker.CYLINDER
+            # elif self.label == 'go_first_floor':
+            #     marker.color.r = 52/255
+            #     marker.color.g = 235/255
+            #     marker.color.b = 79/255
+            #     marker.type = marker.CYLINDER
+            # elif self.label == 'go_second_floor':
+            #     marker.color.r = 51/255
+            #     marker.color.g = 158/255
+            #     marker.color.b = 235/255
+            #     marker.type = marker.CYLINDER
+            # elif self.label == 'bottle':
+            #     # Red Cube
+            #     marker.color.r = 1
+            #     marker.type = marker.CUBE
+            # elif self.label == 'bowl':
+            #     # Blue Cube
+            #     marker.color.b = 1
+            #     marker.type = marker.CUBE
+            # elif self.label == 'elevator':
+            #     marker.color.r = 0.5
+            #     marker.color.b = 0.5
+            #     marker.type = marker.CUBE
+            # elif self.label == 'elevator_button':
+            #     marker.color.r = 1
+            #     marker.type = marker.CUBE
             
             
             marker.action = marker.ADD
@@ -268,6 +298,10 @@ class ObjectParticleFilter(ParticleFilter):
         
         self.marker_pub = rospy.Publisher('filter/particles/{}'.format(label), MarkerArray, queue_size=10)
         self.observations = []
+        if self.label == 'spoon':
+            dummy_obs = StaticObject('spoon', -5, -2, 0.7)
+            self.observations.append(dummy_obs)
+
         # if self.label == 'bottle':
         #     dummy_obs = StaticObject('bottle', -2.2, -1, 0.79)
         #     self.observations.append(dummy_obs)

@@ -24,13 +24,12 @@ class GraspClient:
     def __init__(self):
         roscpp_initialize(sys.argv)
         self.tf_listener = tf.TransformListener()
-        rospy.logwarn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TF_LISTENER: {}".format(self.tf_listener))
         self.scene = PlanningSceneInterface()
         self.arm = MoveGroupCommander('arm_with_torso', wait_for_servers=30)
-        # self.find_client = actionlib.SimpleActionClient('basic_grasping_perception/find_objects', FindGraspableObjectsAction)
-        # self.find_client.wait_for_server()
-        # self.gloc_client = actionlib.SimpleActionClient('grasploc_requests', GrasplocRequestAction)
-        # self.gloc_client.wait_for_server()
+        self.find_client = actionlib.SimpleActionClient('basic_grasping_perception/find_objects', FindGraspableObjectsAction)
+        self.find_client.wait_for_server()
+        self.gloc_client = actionlib.SimpleActionClient('grasploc_requests', GrasplocRequestAction)
+        self.gloc_client.wait_for_server()
         self.request_server = actionlib.SimpleActionServer('kisailus_pick', PickRequestAction, self.callback, auto_start=False)
         self.request_server.start()
         self.observation_pub = rospy.Publisher("scene/observations", ObjectDetection, queue_size=10)
@@ -39,25 +38,54 @@ class GraspClient:
     
     def callback(self, request):
         rospy.loginfo("PICK_NODE: Got a request..")
-        self.push_elevator(request.pose)
+        if request.mode == 0:
+            goal = GrasplocRequestGoal()
+            goal.tmp = 0
+            self.gloc_client.send_goal(goal)
+            self.gloc_client.wait_for_result()
+            result = self.gloc_client.get_result()
+            rospy.loginfo("PICK_NODE: Got result from gloc_!")
+            self.update_scene()
+            rospy.sleep(3)
+            self.send_grasps(result.graspable_points.poses)
+            rospy.loginfo("PICK_NODE: Done!")
+            self.pour()
+            self.place()
 
-        """
-        (-5.135110404488336, -1.4681997482711528, 1.1547365888088212)
-        [-5.05286094 -1.49557021  1.12638515]
-
-        [-5.10183395 -1.44774998  1.16170837]
-        """
-        # goal = GrasplocRequestGoal()
-        # goal.tmp = 0
-        # self.gloc_client.send_goal(goal)
-        # self.gloc_client.wait_for_result()
-        # result = self.gloc_client.get_result()
-        # rospy.loginfo("PICK_NODE: Got result from gloc_!")
-        # self.update_scene()
-        # rospy.sleep(5)
-        # self.send_grasps(result.graspable_points.poses)
-        # rospy.loginfo("PICK_NODE: Done!")
-        # self.request_server.set_succeeded()
+        # self.push_elevator(request.pose)        
+        self.request_server.set_succeeded()
+    
+    def pour(self, goal=None):
+        cur_pose = self.arm.get_current_pose()
+        zero_rot = [0,0,0,1]
+        goal_quat = [ -0.7833269, 0, 0, 0.62161 ] # -1.8 rad
+        # goal_quat = [-0.7071068, 0, 0, 0.7071068] # -1.57 rad
+        goal_pos = cur_pose.pose.position
+        goal_pose = PoseStamped()
+        goal_pose.header.frame_id = "base_link"
+        goal_pose.pose.position  = goal_pos
+        goal_pose.pose.orientation.x = goal_quat[0]
+        goal_pose.pose.orientation.y = goal_quat[1]
+        goal_pose.pose.orientation.z = goal_quat[2]
+        goal_pose.pose.orientation.w = goal_quat[3]
+        waypoints = [cur_pose.pose, goal_pose.pose]
+        (plan, _) = self.arm.compute_cartesian_path(waypoints, 0.01, 0.0)
+        rospy.logwarn("Plan succeeded")
+        self.arm.execute(plan, wait=True)
+    
+    def place(self, goal=None):
+        cur_pose = self.arm.get_current_pose()
+        goal_pose = Pose()
+        goal_pose.orientation.x = 0.0
+        goal_pose.orientation.y = 0.0
+        goal_pose.orientation.z = 0.0
+        goal_pose.orientation.w = 1.0
+        goal_pose.position.x = 0.848478094621
+        goal_pose.position.y = 0.0885518756109
+        goal_pose.position.z = 0.8
+        waypoints = [cur_pose.pose, goal_pose]
+        (plan, _) = self.arm.compute_cartesian_path(waypoints, 0.01, 0.0)
+        self.arm.execute(plan, wait=True)
     
     def push_elevator(self, goal):
         # Close to button
@@ -183,7 +211,9 @@ class GraspClient:
             surface_pose = PoseStamped()
             surface_pose.pose = surface.primitive_poses[0]
             surface_pose.header.frame_id = 'base_link'
-            self.scene.add_box(surface.name, surface_pose, (surface.primitives[0].dimensions[0], surface.primitives[0].dimensions[1], surface.primitives[0].dimensions[2]))
+            rospy.logwarn("dims: {:.4f}, {:.4f}, {:.4f}".format(surface.primitives[0].dimensions[0], surface.primitives[0].dimensions[1], surface.primitives[0].dimensions[2]))
+            surface_pose.pose.position.z /= 2
+            self.scene.add_box(surface.name, surface_pose, (surface.primitives[0].dimensions[0], surface.primitives[0].dimensions[1], surface_pose.pose.position.z*2))
             self.arm.set_support_surface_name(surface.name)
     
     def grasploc_cb(self, msg):
