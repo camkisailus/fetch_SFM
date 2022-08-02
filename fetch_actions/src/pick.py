@@ -49,7 +49,7 @@ class GraspClient:
             rospy.sleep(3)
             self.send_grasps(result.graspable_points.poses)
             rospy.loginfo("PICK_NODE: Done!")
-            self.pour()
+            # # self.pour()
             self.place()
 
         # self.push_elevator(request.pose)        
@@ -82,7 +82,7 @@ class GraspClient:
         goal_pose.orientation.w = 1.0
         goal_pose.position.x = 0.848478094621
         goal_pose.position.y = 0.0885518756109
-        goal_pose.position.z = 0.8
+        goal_pose.position.z = 0.84
         waypoints = [cur_pose.pose, goal_pose]
         (plan, _) = self.arm.compute_cartesian_path(waypoints, 0.01, 0.0)
         self.arm.execute(plan, wait=True)
@@ -134,6 +134,8 @@ class GraspClient:
             grasp = Grasp()
             grasp.id = 'test'
             grasp.grasp_pose.pose = grasp_pose
+            if grasp.grasp_pose.pose.position.z < 0.8:
+                grasp.grasp_pose.pose.position.z = 0.8
             grasp.grasp_pose.header.frame_id = 'base_link'
 
             grasp.pre_grasp_posture.joint_names = ['r_gripper_finger_joint', 'l_gripper_finger_joint']
@@ -200,8 +202,16 @@ class GraspClient:
             obs_msg.pose = transformed_pt.pose
             obs_msg.label = 'bottle'
             self.observation_pub.publish(obs_msg)
-            rospy.loginfo("Adding {} to planning scene.".format(obj.object.name))
-            self.scene.add_box(obj.object.name, obj_pose, (obj.object.primitives[0].dimensions[0], obj.object.primitives[0].dimensions[1], obj.object.primitives[0].dimensions[2]))
+            # # dims: 0.0755453705788, 0.0773956924677, 0.17219388485
+            # rospy.loginfo("Adding {} to planning scene.".format(obj.object.name))
+            # rospy.loginfo("dim 1: {}".format(obj.object.primitives[0].dimensions[0]))
+            # rospy.loginfo("dim 2: {}".format(obj.object.primitives[0].dimensions[1]))
+            # rospy.loginfo("dim 3: {}".format(obj.object.primitives[0].dimensions[2]))
+            try:
+                self.scene.add_box(obj.object.name, obj_pose, (obj.object.primitives[0].dimensions[0], obj.object.primitives[0].dimensions[1], obj.object.primitives[0].dimensions[2]))
+            except:
+                rospy.logwarn("Basic perception could not get object dimensions. Defaulting to default values")
+                self.scene.add_box(obj.object.name, obj_pose, (0.0755453705788, 0.0773956924677, 0.17219388485))
         idx = -1
         for surface in find_result.support_surfaces:
             if surface.primitive_poses[0].position.z <= 0.25:
