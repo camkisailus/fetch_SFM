@@ -43,7 +43,7 @@ REGIONS = {
 # }
 class State():
     def __init__(self):
-        self.action_history = ['grasp_spoon']
+        self.action_history = ['idle']
         self.ah_sub = rospy.Subscriber("/add_action_to_action_history", String, self.add_action_to_action_history)
     
     def add_action_to_action_history(self, action_taken):
@@ -115,7 +115,7 @@ class SFMClient():
             self.regions[name] = Region(name, bounds[0], bounds[1],bounds[2], bounds[3], bounds[4], bounds[5])
         self.bottle_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1'], self.regions['table2']], label='bottle')
         self.bowl_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1']], label='bowl')
-        self.spoon_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1']], label='spoon')
+        self.spoon_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1'], self.regions['table2']], label='spoon')
         self.object_filters = {'bottle':self.bottle_particle_filter, 'bowl':self.bowl_particle_filter, 'spoon':self.spoon_particle_filter}
         self.state = State()
         self.frame_filters = {}
@@ -123,7 +123,8 @@ class SFMClient():
         self.update = True
         for i, frame in enumerate(self.kb):
             self.frame_to_label_dict[i] = frame.name
-            valid_regions = [self.regions['table1'], self.regions['table2']]
+            valid_regions = None
+            # valid_regions = [self.regions['table1'], self.regions['table2']]
             # if frame.name.startswith('go_elevator'):
             # valid_regions = [self.regions['elevator']]
             filter = FrameParticleFilter(50, frame.name, frame.preconditions, frame.core_frame_elements, valid_regions)
@@ -153,15 +154,33 @@ class SFMClient():
         for _, filter in self.frame_filters.items():
             filter.update_filter(self.state)
             filter.publish()
+            # if filter.label == 'grasp_bottle':
+            #     means, covs, weights = filter.bgmm()
+            #     print("means")
+            #     for cov, weight in zip(covs,weights):
+            #         print('\t{}'.format(cov))
+            #         print('\t\t{}'.format(weight))
     
     def execute_frame(self, frame_name):
         if frame_name.data == 'grasp_bottle':
-            rospy.loginfo("Got request to grasp_bottle")
-            self.ac.pick()
-        elif frame_name.data == 'pour_bottle':
-            rospy.loginfo("POUR BOTTLE")
-        else:
-            rospy.logwarn("INVALID action")
+            means, covs , weights = self.frame_filters['grasp_bottle'].bgmm()
+        elif frame_name.data == 'grasp_spoon':
+            means, covs , weights = self.frame_filters['grasp_spoon'].bgmm()
+        elif frame_name.data == 'stir_bowl':
+            means, covs , weights = self.frame_filters['stir_bowl'].bgmm()
+        for m, c, w in zip(means, covs, weights):
+            if w > float(1/len(weights)):
+                print("Weight: {}".format(w))
+                print("Mean: ({:.2f}, {:.2f}, {:.2f})".format(m[0],m[1],m[2]))
+                print("Cov diag: ({:.2f}, {:.2f}, {:.2f})".format(c[0,0], c[1,1], c[2,2]))
+        print("############################################")
+        # if frame_name.data == 'grasp_bottle':
+        #     rospy.loginfo("Got request to grasp_bottle")
+        #     self.ac.pick()
+        # elif frame_name.data == 'pour_bottle':
+        #     rospy.loginfo("POUR BOTTLE")
+        # else:
+        #     rospy.logwarn("INVALID action")
 
         # mean, _ = self.frame_filters['call_elevator'].bgmm()
         # bmean, _ = self.object_filters['elevator_button'].bgmm()
