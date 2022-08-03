@@ -28,7 +28,6 @@ class StaticObject(object):
         self.x = x
         self.y = y
         self.z = z
-        rospy.loginfo("Observation of {} at ({}, {}, {})".format(self.label, self.x, self.y, self.z))
         self.marker_pub = rospy.Publisher('/filter/static_object/{}'.format(label), MarkerArray, queue_size=10)
 
         self.marker_array = MarkerArray()
@@ -41,7 +40,6 @@ class StaticObject(object):
         self.marker.scale.x = 0.2
         self.marker.scale.y = 0.2
         self.marker.scale.z = 0.2
-        # self.marker.color.b = 1
         self.marker.color.a = 1
         self.marker.pose.orientation.w = 1.0
         self.marker.pose.position.x = self.x
@@ -72,38 +70,24 @@ class ParticleFilter(object):
         except:
             self.valid_regions = None
         self.lock = RLock()
-        # if len(valid_regions) == 0:
-        #     self.valid_regions = [region_id for region_id in REGIONS.keys()]
-        # else:
-        #     self.valid_regions = [region_id for region_id in valid_regions]
         self.reinvigoration_idx = 0
         self.label = label
-        # self.marker_pub = rospy.Publisher('filters/{}'.format(label), MarkerArray, queue_size=10)
         for i in range(self.n):
             self.particles[i] = self.reinvigorate(self.particles[i])
     
     def bgmm(self):
         with self.lock:
             bgm = BayesianGaussianMixture(n_components=20, n_init=10).fit(self.particles)
-            bgm_weights = bgm.weights_
-            bgm_means = bgm.means_
-            # rospy.loginfo("Cluster weights: {}".format(bgm_weights))
-            # rospy.loginfo("Cluster means: {}".format(bgm_means))
-            n_clusters_ = (np.round(bgm_weights, 2) > 0).sum()
-            # rospy.loginfo('Estimated number of clusters: ' + str(n_clusters_))
-            index_max = np.argmax(bgm_weights)
-            # rospy.loginfo("Max cluster weight idx: {}".format(index_max))
-            # rospy.loginfo("Max cluster weight: {}".format(bgm_weights[index_max]))
-            # rospy.loginfo("Max cluster mean: {}".format(bgm_means[index_max]))
             return bgm.means_, bgm.covariances_, bgm.weights_
         
     def reinvigorate(self, particle):
         if self.valid_regions is None:
+            # Random resample in entire map
             particle[0] = -9 + np.random.random()*10
             particle[1] = -5 + np.random.random()*6
             particle[2] = np.random.random()*2
-        
         else:
+            # Random resample in a valid region
             region = self.valid_regions[self.reinvigoration_idx % len(self.valid_regions)]
             min_x, max_x, min_y, max_y, min_z, max_z =region.get_bounds()
             particle[0] = min_x + np.random.random()*(max_x - min_x)
@@ -147,27 +131,6 @@ class ParticleFilter(object):
             else:
                 j += 1
         return indexes
-    
-    def bgmm_resample(self):
-        means, covs, weights = self.bgmm()
-        count = 0
-        for mean, cov, weight in zip(means, covs, weights):
-            k = math.floor(self.n * 0.9 * weight)
-            for j in range(k):
-                sample_loc = np.random.multivariate_normal(mean, cov)
-                self.particles[count] = sample_loc
-                # self.weights[count] = 1 / self.n
-                count += 1
-        for i in range(count, self.n):
-            self.particles[i] = self.reinvigorate(self.particles[i])
-            # self.weights[i] = 1 / self.n
-
-
-    def dist(self, particle, location):
-            x_dist = (particle[0] - location[0])**2
-            y_dist = (particle[1] - location[1])**2
-            z_dist = (particle[2] - location[2])**2
-            return np.sqrt(x_dist + y_dist + z_dist)
 
     def resample(self):
         # Low Variance Resampling
@@ -188,6 +151,7 @@ class ParticleFilter(object):
         #     temp_p[i] = self.reinvigorate()
         # self.particles = copy.deepcopy(temp_p)
         # self.weights = 1/self.n * np.ones([self.n])
+
         ## all particles over 1/n weight get resampled all less than get reinvigorated
         temp_p = self.particles[:]
         temp_w = self.weights[:]
@@ -198,36 +162,9 @@ class ParticleFilter(object):
             else:
                 self.particles[i] = self.reinvigorate(copy.deepcopy(temp_p[i]))
                 self.weights[i] = float(1/self.n)
-        ## 10 per location w radius way
-        # dist_thresh = 0.5
-        # count_thresh = 10
-        # draw = np.random.choice(self.n, int(self.n*0.8), p=self.weights, replace=True)
-        # temp_p = self.particles[:]
-        # temp_w = self.weights[:]
-        # sampled_locs = {}
-        # for i in range(len(draw)):
-        #     p = temp_p[draw[i]]
-        #     new_loc = True
-        #     for loc, samples in sampled_locs.items():
-        #         if self.dist(p, loc) <= dist_thresh:
-        #             new_loc = False
-        #             if samples < count_thresh:
-        #                 self.particles[i] = copy.deepcopy(p)
-        #                 self.weights[i] = copy.deepcopy(temp_w[i])
-        #                 sampled_locs[loc]+=1
-        #             else:
-        #                 self.particles[i] = self.reinvigorate(copy.deepcopy(p))
-        #                 self.weights[i] = 1/self.n
-        #     if new_loc:
-        #         self.particles[i] = copy.deepcopy(p)
-        #         self.weights[i] = copy.deepcopy(temp_w[i])
-        #         sampled_locs[tuple((p[0], p[1], p[2]))] = 1
-        # for i in range(int(self.n*0.8)+1, self.n):
-        #     self.particles[i] = self.reinvigorate(self.particles[i])
-        #     self.weights[i] = temp_w[i]
-        
 
         
+        ## Some other resampling technique
         # self.particles[0, :] = copy.deepcopy(temp_p[np.argmax(self.weights)])
         # self.weights[0] = copy.deepcopy(temp_w[np.argmax(self.weights)])
         # self.particles[1, :] = self.jitter(copy.deepcopy(temp_p[np.argmax(self.weights)]))
@@ -239,6 +176,8 @@ class ParticleFilter(object):
         # for j in range(2+len(draw), self.n):
         #     self.particles[j] = self.reinvigorate(self.particles[j])
         #     self.weights[j] = 1/self.n
+
+        
     
     def jitter(self, particle):
         x_noise = np.random.normal(0, self.Sigma[0,0])
@@ -253,7 +192,6 @@ class ParticleFilter(object):
         for k in range(self.n):
             self.particles[k, :]= self.jitter(self.particles[k, :])
             self.weights[k] = self.assign_weight(self.particles[k, :])
-        # try annealing
         self.weights = self.weights / np.sum(self.weights)
         self.resample()
     
@@ -266,7 +204,6 @@ class ParticleFilter(object):
             marker = Marker()
             marker.id = i
             marker.header.frame_id = 'map'
-            
             if self.label == 'bottle':
                 # red cube
                 marker.color.r = 1
@@ -336,22 +273,16 @@ class ObjectParticleFilter(ParticleFilter):
 
     
     def handle_ar_detection(self, msg):
-        # rospy.loginfo("Got AR tag detection")
         for detection in msg.detections:
-            # if(len(self.observations) > 0):
-            #     print(returning)
-            #     return
             obj_label = self.ar_to_obj_map[detection.id[0]]
             if obj_label == self.label:
                 new_obj = True
                 for obs in self.observations:
                     if obs.label == obj_label:
-                        # print("Updating observation: {} to filter: {}".format(obj_label, self.label))
                         obs.update_position(detection.pose.pose.pose.position.x, detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z)
                         new_obj = False
                 if new_obj:
                     obj = StaticObject(obj_label, detection.pose.pose.pose.position.x, detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z)
-                    # print("Adding observation: {} to filter: {}".format(obj.label, self.label))
                     self.observations.append(obj)
             
         
@@ -360,10 +291,6 @@ class ObjectParticleFilter(ParticleFilter):
             rospy.loginfo("{}_pf: Received observation at ({}, {}, {})".format(self.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z))
             obj = StaticObject(observation.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z)
             self.observations.append(obj)
-        # if self.label == 'spoon':
-            
-        #     obj = StaticObject('spoon', observation.position.x, observation.position.y, observation.position.z)
-        #     self.observations.append(obj)
     
     
     def assign_weight(self, particle):
@@ -382,11 +309,9 @@ class ObjectParticleFilter(ParticleFilter):
         return max_phi
 
     def update_filter(self):
-        # rospy.loginfo("Updating {}".format(self.label))
         for k in range(self.n):
             self.particles[k, :]= self.jitter(self.particles[k, :])
             self.weights[k] = self.assign_weight(self.particles[k, :])
-        # try annealing
         self.weights = self.weights / np.sum(self.weights)
         self.resample()
            
@@ -395,7 +320,6 @@ class FrameParticleFilter(ParticleFilter):
         super(FrameParticleFilter, self).__init__(n, label, valid_regions)
         
         self.marker_pub = rospy.Publisher('filter/particles/{}'.format(label), MarkerArray, queue_size=10)
-        # self.execute_sub = rospy.Subscriber('{}/execute'.format(self.label), Bool, self.execute, queue_size=1)
         self.frame_element_filters = {frame_element:None for frame_element in core_frame_elements}
         self.frame_elements = core_frame_elements
         if preconditions:
@@ -433,20 +357,14 @@ class FrameParticleFilter(ParticleFilter):
                     i += 1
                 else:
                     break
-            # weight = 1
-            potential = 0
-            # if self.label == 'stir_bowl':
-            #     print("SELF_BOWL CONTEXT checking: {}".format(self.precondition_filters[self.preconditions[i]].label))
+            potential = 1
             while i < len(self.preconditions):
                 subtask_filter = self.precondition_filters[self.preconditions[i]]
                 for j in range(subtask_filter.n):
                     other_particle = subtask_filter.particles[j, :]
                     dist = np.sqrt((other_particle[0]-particle[0])**2 + (other_particle[1]-particle[1])**2 + (other_particle[2]-particle[2])**2)
                     phi = math.exp(-1*dist)
-                    # phi = math.exp(-5*dist)
                     potential += (phi*subtask_filter.weights[j])
-                    # if phi > 0.2:
-                    #     weight += float(1.0/2**i)* subtask_filter.weights[j]
                 i+=1
             return potential
         else:
@@ -461,9 +379,7 @@ class FrameParticleFilter(ParticleFilter):
                     break
                 else:
                     i+=1
-        if self.label == 'go_first_floor':
-            i-=1
-        potential = 0
+        potential = 1
         core_elem_weight_mod = 1
         while i < len(self.frame_elements):
             core_element_filter = self.frame_element_filters[self.frame_elements[i]]
@@ -479,13 +395,9 @@ class FrameParticleFilter(ParticleFilter):
     def assign_weight(self, particle, state):
         measurement = self.measurement_potential(particle, state)
         context = self.context_potential(particle, state)
-        # rospy.loginfo(self.label)
-        # rospy.loginfo("measurement: {:.4f} context: {:.4f}".format(measurement, context))
-        return measurement+context
+        return measurement*context 
     
     def update_filter(self, state):
-        # rospy.loginfo("Updating {}".format(self.label))
-        # rospy.loginfo(state.action_history)
         with self.lock:
             for k in range(self.n):
                 self.particles[k, :] = self.jitter(self.particles[k,:])

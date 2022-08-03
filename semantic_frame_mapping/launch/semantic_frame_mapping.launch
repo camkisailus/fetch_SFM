@@ -1,4 +1,5 @@
 <launch>
+
     <node pkg="semantic_frame_mapping" type="SFM.py" name="SFM_client_node" output="screen">
         <param name="sf_dir" value="$(find semantic_frame_mapping)/sf/"/>
     </node>

@@ -1,0 +1,8 @@
+<launch>
+    <arg name="map_file" default="/home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/maps/lab062122.yaml"/>
+
+    <!-- Run the map server -->
+    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+    <include file="$(find semantic_frame_mapping)/launch/semantic_frame_mapping.launch"/>
+
+</launch>
