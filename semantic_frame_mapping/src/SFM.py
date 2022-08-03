@@ -47,7 +47,7 @@ class State():
         self.ah_sub = rospy.Subscriber("/add_action_to_action_history", String, self.add_action_to_action_history)
     
     def add_action_to_action_history(self, action_taken):
-        pass
+        self.action_history.append(action_taken.data)
 
 class Region():
     def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z):
@@ -219,11 +219,12 @@ class SFMClient():
 if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
     foo = SFMClient()
-    r = rospy.Rate(10)
+    r = rospy.Rate(5)
     # i = 0
     while not rospy.is_shutdown():
         # rospy.loginfo("Updating...")
         foo.update_filters()
+        # print(foo.state.action_history)
         # rospy.loginfo(i)
         # if i == 10:
         #     foo.frame_filters['grasp_bottle'].bgmm()

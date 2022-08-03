@@ -317,7 +317,7 @@ class ObjectParticleFilter(ParticleFilter):
         self.marker_pub = rospy.Publisher('filter/particles/{}'.format(label), MarkerArray, queue_size=10)
         self.observations = []
         # if self.label == 'spoon':
-        #     dummy_obs = StaticObject('spoon', -1.5, -1, 0.7)
+        #     dummy_obs = StaticObject('spoon', -5, -2, 0.7)
         #     self.observations.append(dummy_obs)
 
         # if self.label == 'bottle':
@@ -481,7 +481,7 @@ class FrameParticleFilter(ParticleFilter):
         context = self.context_potential(particle, state)
         # rospy.loginfo(self.label)
         # rospy.loginfo("measurement: {:.4f} context: {:.4f}".format(measurement, context))
-        return measurement*context
+        return measurement+context
     
     def update_filter(self, state):
         # rospy.loginfo("Updating {}".format(self.label))
