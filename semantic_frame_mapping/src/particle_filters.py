@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 from random import random
+
 import rospy
 import numpy as np
 import copy
@@ -76,10 +77,11 @@ class ParticleFilter(object):
         self.label = label
         for i in range(self.n):
             self.particles[i] = self.reinvigorate(self.particles[i])
+        self.bgm = BayesianGaussianMixture(n_components=20, n_init=10, warm_start=False)
     
     def bgmm(self):
         with self.lock:
-            bgm = BayesianGaussianMixture(n_components=20, n_init=10).fit(self.particles)
+            bgm = self.bgm.fit(self.particles)
             return bgm.means_, bgm.covariances_, bgm.weights_
         
     def reinvigorate(self, particle):
@@ -255,13 +257,13 @@ class ObjectParticleFilter(ParticleFilter):
         
         self.marker_pub = rospy.Publisher('filter/particles/{}'.format(label), MarkerArray, queue_size=10)
         self.observations = []
-        # if self.label == 'spoon':
-        #     dummy_obs = StaticObject('spoon', -5, -2, 0.7)
-        #     self.observations.append(dummy_obs)
+        if self.label == 'spoon':
+            dummy_obs = StaticObject('spoon', -5, -2, 0.7)
+            self.observations.append(dummy_obs)
 
-        # if self.label == 'bottle':
-        #     dummy_obs = StaticObject('bottle', -2.2, -1, 0.79)
-        #     self.observations.append(dummy_obs)
+        if self.label == 'bottle':
+            dummy_obs = StaticObject('bottle', -2.2, -1, 0.79)
+            self.observations.append(dummy_obs)
         # elif self.label == 'mug':
         #     dummy_obs = StaticObject('mug', 2.48213674403, 2.11895497563, 0.798618733883 )
         #     other_mug = StaticObject('mug_2', 8.5, -4.0, 0.798618733883)
@@ -336,55 +338,60 @@ class FrameParticleFilter(ParticleFilter):
         super(FrameParticleFilter, self).publish()
         arr = MarkerArray()
         means, covs, weights = self.bgmm()
-        n = 3
-        indices = (-weights).argsort()[:n]
-        count = 0
-        for idx in indices:
-            def normalize(v):
+        max_idx = np.argmax(weights)
+        m, c = means[max_idx], covs[max_idx]
+        def normalize(v):
                 norm = np.linalg.norm(v)
                 if norm == 0: 
                     return v
                 return v / norm
-            m, c, _ = means[idx], covs[idx], weights[idx]
+            # m, c, _ = means[idx], covs[idx], weights[idx]
+
+        """
+        n = 3
+        indices = (-weights).argsort()[:n]
+        count = 0
+        for idx in indices:
             
+        """
 
 
-            (eigValues,eigVectors) = np.linalg.eig(c)
-            eigx_n = np.array([eigVectors[0,0],eigVectors[0,1],eigVectors[0,2]]).reshape(1,3)
-            eigy_n=-np.array([eigVectors[1,0],eigVectors[1,1],eigVectors[1,2]]).reshape(1,3)
-            eigz_n= np.array([eigVectors[2,0],eigVectors[2,1],eigVectors[2,2]]).reshape(1,3)
-            eigx_n = normalize(eigx_n)
-            eigy_n = normalize(eigy_n)
-            eigz_n = normalize(eigz_n)
-            rot_mat = np.hstack([eigx_n.T, eigy_n.T, eigz_n.T])
-            rot = R.from_matrix(rot_mat)
-            quat = rot.as_quat()
-            marker = Marker()
-            marker.id = count
-            marker.type = Marker.SPHERE
-            marker.action = Marker.ADD
-            marker.pose.position.x = m[0]
-            marker.pose.position.y = m[1]
-            marker.pose.position.z = m[2]
-            marker.header.frame_id = 'map'
-            marker.pose.orientation.x = quat[0]
-            marker.pose.orientation.y = quat[1]
-            marker.pose.orientation.z = quat[2]
-            marker.pose.orientation.w = quat[3]
-            marker.scale.x = eigValues[0]*2
-            marker.scale.y = eigValues[1]*2
-            marker.scale.z = eigValues[2]*2
+        (eigValues,eigVectors) = np.linalg.eig(c)
+        eigx_n = np.array([eigVectors[0,0],eigVectors[0,1],eigVectors[0,2]]).reshape(1,3)
+        eigy_n=-np.array([eigVectors[1,0],eigVectors[1,1],eigVectors[1,2]]).reshape(1,3)
+        eigz_n= np.array([eigVectors[2,0],eigVectors[2,1],eigVectors[2,2]]).reshape(1,3)
+        eigx_n = normalize(eigx_n)
+        eigy_n = normalize(eigy_n)
+        eigz_n = normalize(eigz_n)
+        rot_mat = np.hstack([eigx_n.T, eigy_n.T, eigz_n.T])
+        rot = R.from_matrix(rot_mat)
+        quat = rot.as_quat()
+        marker = Marker()
+        marker.id = 0
+        marker.type = Marker.SPHERE
+        marker.action = Marker.ADD
+        marker.pose.position.x = m[0]
+        marker.pose.position.y = m[1]
+        marker.pose.position.z = m[2]
+        marker.header.frame_id = 'map'
+        marker.pose.orientation.x = quat[0]
+        marker.pose.orientation.y = quat[1]
+        marker.pose.orientation.z = quat[2]
+        marker.pose.orientation.w = quat[3]
+        marker.scale.x = eigValues[0]*2
+        marker.scale.y = eigValues[1]*2
+        marker.scale.z = eigValues[2]*2
 
-            
-            marker.color.a = 1 - count*0.35
-            count+=1
-            if self.label == 'grasp_bottle':
-                marker.color.r = 1.0
-            elif self.label == 'grasp_spoon':
-                marker.color.b = 1.0
-            elif self.label == 'stir_bowl':
-                marker.color.g = 1
-            arr.markers.append(marker)
+        marker.color.a = 0.5
+        # marker.color.a = 1 - count*0.35
+        # count+=1
+        if self.label == 'grasp_bottle':
+            marker.color.r = 1.0
+        elif self.label == 'grasp_spoon':
+            marker.color.b = 1.0
+        elif self.label == 'stir_bowl':
+            marker.color.g = 1
+        arr.markers.append(marker)
         
         self.gauss_pub.publish(arr)
 
