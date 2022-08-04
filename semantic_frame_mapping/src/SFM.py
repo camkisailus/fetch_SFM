@@ -219,7 +219,7 @@ class SFMClient():
 if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
     foo = SFMClient()
-    r = rospy.Rate(5)
+    r = rospy.Rate(20)
     # i = 0
     while not rospy.is_shutdown():
         # rospy.loginfo("Updating...")

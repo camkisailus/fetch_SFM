@@ -6,9 +6,11 @@ import numpy as np
 import copy
 import math
 import actionlib
+# import PyKDL
 # import tf
 
 from scipy.stats import multivariate_normal
+from scipy.spatial.transform import Rotation as R
 from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
 from std_msgs.msg import Bool
 from threading import RLock
@@ -320,6 +322,7 @@ class FrameParticleFilter(ParticleFilter):
         super(FrameParticleFilter, self).__init__(n, label, valid_regions)
         
         self.marker_pub = rospy.Publisher('filter/particles/{}'.format(label), MarkerArray, queue_size=10)
+        self.gauss_pub = rospy.Publisher('filter/gauss/{}'.format(label), MarkerArray, queue_size=10)
         self.frame_element_filters = {frame_element:None for frame_element in core_frame_elements}
         self.frame_elements = core_frame_elements
         if preconditions:
@@ -328,6 +331,60 @@ class FrameParticleFilter(ParticleFilter):
             self.next_precondition = preconditions[0]
         else:
             self.preconditions = None
+        
+    def publish(self):
+        super(FrameParticleFilter, self).publish()
+        arr = MarkerArray()
+        means, covs, weights = self.bgmm()
+        max_index = np.argmax(weights)
+        i = 0
+        m, c, w = means[max_index], covs[max_index], weights[max_index]
+        # for m, c, w in zip(means, covs, weights):
+        #     if w >=0.5:
+        (eigValues,eigVectors) = np.linalg.eig(c)
+        eigx_n = np.array([eigVectors[0,0],eigVectors[0,1],eigVectors[0,2]]).reshape(1,3)
+        eigy_n=-np.array([eigVectors[1,0],eigVectors[1,1],eigVectors[1,2]]).reshape(1,3)
+        eigz_n= np.array([eigVectors[2,0],eigVectors[2,1],eigVectors[2,2]]).reshape(1,3)
+        def normalize(v):
+            norm = np.linalg.norm(v)
+            if norm == 0: 
+                return v
+            return v / norm
+        eigx_n = normalize(eigx_n)
+        eigy_n = normalize(eigy_n)
+        eigz_n = normalize(eigz_n)
+        rot_mat = np.hstack([eigx_n.T, eigy_n.T, eigz_n.T])
+        rot = R.from_matrix(rot_mat)
+        quat = rot.as_quat()
+        marker = Marker()
+        marker.id = 1
+        marker.type = Marker.SPHERE
+        marker.action = Marker.ADD
+        marker.pose.position.x = m[0]
+        marker.pose.position.y = m[1]
+        marker.pose.position.z = m[2]
+        marker.header.frame_id = 'map'
+        marker.pose.orientation.x = quat[0]
+        marker.pose.orientation.y = quat[1]
+        marker.pose.orientation.z = quat[2]
+        marker.pose.orientation.w = quat[3]
+        marker.scale.x = eigValues[0]*2
+        marker.scale.y = eigValues[1]*2
+        marker.scale.z = eigValues[2]*2
+
+        
+        marker.color.a = 0.5
+        if self.label == 'grasp_bottle':
+            marker.color.r = 1.0
+        elif self.label == 'grasp_spoon':
+            marker.color.b = 1.0
+        elif self.label == 'stir_bowl':
+            marker.color.g = 1
+        arr.markers.append(marker)
+        
+        self.gauss_pub.publish(arr)
+
+
         
         
     def gmm(self):
