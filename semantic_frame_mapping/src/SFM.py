@@ -20,9 +20,9 @@ from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoC
 # }
 ## LAB 06-21-22
 REGIONS = {
-    'table1': (-2.2, -1.2, -1.25, -0.5, 0.6, 0.8),
-    'table2': (-5.75, -4.75, -2.25, -1.5, 0.6, 0.8),
-    'elevator': (-1.2, -1.2, -18.5, -18.5, 1, 1),
+    'table1': (-2.2, -1.2, -1.25, -0.5, 0.0, 1.5),#(-2.2, -1.2, -1.25, -0.5, 0.6, 0.8),
+    'table2': (-5.75, -4.75, -2.25, -1.5, 0.0, 1.5),#(-5.75, -4.75, -2.25, -1.5, 0.6, 0.8),
+    'elevator': (-1.2, -1.2, -18.5, -18.5, 0.0, 1.5),#(-1.2, -1.2, -18.5, -18.5, 1, 1),
 }
 ## LAB HALLWAY
 # ELEVATOR = (-1.0, -18.7, 3.14)
@@ -52,15 +52,44 @@ class State():
 class Region():
     def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z):
         self.name = name
+        # rospy.logwarn(self.name)
         self.min_x = min_x
         self.max_x = max_x
         self.min_y = min_y
         self.max_y = max_y
         self.min_z = min_z
         self.max_z = max_z
+        # rospy.logwarn(self.min_x, self.min_y, self.min_z, self.max_x, self.max_y, self.max_z)
+        self.pub = rospy.Publisher("/region/{}".format(name), Marker, queue_size=1)
+        self.marker = Marker()
+        self.marker.id = 0
+        self.marker.header.frame_id = 'map'
+        if self.name == 'table1':
+            self.marker.color.r = 1
+        elif self.name == 'table2':
+            self.marker.color.b = 1
+        
+        self.marker.color.a = 0.5
+        self.marker.type = Marker.CUBE
+        self.marker.action = Marker.ADD
+        self.marker.lifetime = rospy.Duration(0)
+        self.marker.pose.position.x = (min_x + max_x)/2
+        self.marker.pose.position.y = (min_y + max_y)/2
+        self.marker.pose.position.z = (min_z + max_z)/2
+        self.marker.pose.orientation.w = 1.0
+        self.marker.scale.x = max_x - min_x
+        self.marker.scale.y = max_y - min_y
+        self.marker.scale.z = max_z - min_z
+        # rospy.logwarn(self.name)
+        # rospy.logwarn(self.marker)
+        self.pub.publish(self.marker)
+    def publish(self):
+
+        self.pub.publish(self.marker)        
     
     def get_bounds(self):
         return (self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z)
+    
 
 class ActionClient():
     def __init__(self):
@@ -113,9 +142,9 @@ class SFMClient():
         self.regions = {}
         for name, bounds in REGIONS.items():
             self.regions[name] = Region(name, bounds[0], bounds[1],bounds[2], bounds[3], bounds[4], bounds[5])
-        self.bottle_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1']], label='bottle')
-        self.bowl_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1']], label='bowl')
-        self.spoon_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table2']], label='spoon')
+        self.bottle_particle_filter = ObjectParticleFilter(100, valid_regions={self.regions['table1']:0.5, self.regions['table2']:0.5}, label='bottle')
+        self.bowl_particle_filter = ObjectParticleFilter(100, valid_regions={self.regions['table1']:1}, label='bowl')
+        self.spoon_particle_filter = ObjectParticleFilter(100, valid_regions={self.regions['table2']:1}, label='spoon')
         self.object_filters = {'bottle':self.bottle_particle_filter, 'bowl':self.bowl_particle_filter, 'spoon':self.spoon_particle_filter}
         self.state = State()
         self.frame_filters = {}
@@ -138,6 +167,13 @@ class SFMClient():
                 self.frame_filters[frame.name].add_precondition(self.frame_filters[precondition], precondition)
         for _, filter in self.frame_filters.items():
             print(filter.label)
+            i = 0
+            try:
+                for _, weight in filter.valid_regions.items():
+                    print("\tregion {} weight: {}".format(i, weight))
+            except:
+                print("No valid regions for : {}".format(filter.label))
+                pass
             for name, fe_filter in filter.frame_element_filters.items():
                 print("\tcfe: {}, filter: {}".format(name, fe_filter.label))
             try:
@@ -145,7 +181,11 @@ class SFMClient():
                     print("\tpcond: {}, filter: {}".format(name, p_filter.label))
             except AttributeError:
                 print("No preconditions!")
-    
+    def publish_regions(self):
+        for region in self.regions.values():
+            region.publish()
+
+
     def update_filters(self):
         # if self.update:
         for _, filter in self.object_filters.items():
@@ -222,9 +262,10 @@ if __name__ == '__main__':
     r = rospy.Rate(10)
     i = 0
     while not rospy.is_shutdown():
-        print("ITR: {}".format(i+1))
+        # print("ITR: {}".format(i+1))
         # rospy.loginfo("Updating...")
         foo.update_filters()
+        foo.publish_regions()
         # print(foo.state.action_history)
         # rospy.loginfo(i)
         # if i == 10:

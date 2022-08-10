@@ -68,10 +68,20 @@ class ParticleFilter(object):
         self.Sigma = np.array([[0.02, 0, 0], [0, 0.02, 0], [0, 0, 0.02]])
         self.particles = np.zeros([n,3])
         self.weights = 1.0/self.n * np.ones([n])
+        self.valid_regions = {}
         try:
-            self.valid_regions = [vd for vd in valid_regions]
+            for region, weight in valid_regions.items():
+                self.valid_regions[region] = weight
         except:
+            # rospy.logwarn("{} has no valid reigons".format(label))
             self.valid_regions = None
+        rospy.logwarn(label)
+        try:
+            for region, weight in self.valid_regions.items():
+                rospy.logwarn("Region_id: {}, weight: {}, bounds:\n{}".format(region.name, weight, region.get_bounds()))
+        except:
+            pass
+
         self.lock = RLock()
         self.reinvigoration_idx = 0
         self.label = label
@@ -85,20 +95,26 @@ class ParticleFilter(object):
             return bgm.means_, bgm.covariances_, bgm.weights_
         
     def reinvigorate(self, particle):
-        if self.valid_regions is None:
+        # if self.valid_regions is None:
             # Random resample in entire map
-            particle[0] = -9 + np.random.random()*10
-            particle[1] = -5 + np.random.random()*6
-            particle[2] = np.random.random()*2
-        else:
-            # Random resample in a valid region
-            region = self.valid_regions[self.reinvigoration_idx % len(self.valid_regions)]
-            min_x, max_x, min_y, max_y, min_z, max_z =region.get_bounds()
-            particle[0] = min_x + np.random.random()*(max_x - min_x)
-            particle[1] = min_y + np.random.random()*(max_y - min_y)
-            particle[2] = min_z + np.random.random()*(max_z - min_z)
-            self.reinvigoration_idx+=1
-
+        particle[0] = np.random.uniform(-9, 1)
+        # -9 + np.random.random()*10
+        particle[1] = np.random.uniform(-5, 1)
+        # -5 + np.random.random()*6
+        particle[2] = np.random.uniform(0, 2)
+        # np.random.random()*2
+        # else:
+        #     # Random resample in a valid region
+        #     r = np.random.random()
+        #     prev_bounds = [0]
+        #     for region, weight in self.valid_regions.items():
+        #         if r >= 1 - weight - sum(prev_bounds):
+        #             # region = self.valid_regions[self.reinvigoration_idx % len(self.valid_regions)]
+        #             min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
+        #             particle[0] = min_x + np.random.random()*(max_x - min_x)
+        #             particle[1] = min_y + np.random.random()*(max_y - min_y)
+        #             particle[2] = min_z + np.random.random()*(max_z - min_z)
+        #             # self.reinvigoration_idx+=1                   
         return particle
 
     def systematic_resample(self):
@@ -257,13 +273,13 @@ class ObjectParticleFilter(ParticleFilter):
         
         self.marker_pub = rospy.Publisher('filter/particles/{}'.format(label), MarkerArray, queue_size=10)
         self.observations = []
-        if self.label == 'spoon':
-            dummy_obs = StaticObject('spoon', -5, -2, 0.7)
-            self.observations.append(dummy_obs)
+        # if self.label == 'spoon':
+        #     dummy_obs = StaticObject('spoon', -5, -2, 0.7)
+        #     self.observations.append(dummy_obs)
 
-        if self.label == 'bottle':
-            dummy_obs = StaticObject('bottle', -2.2, -1, 0.79)
-            self.observations.append(dummy_obs)
+        # if self.label == 'bottle':
+        #     dummy_obs = StaticObject('bottle', -2.2, -1, 0.79)
+        #     self.observations.append(dummy_obs)
         # elif self.label == 'mug':
         #     dummy_obs = StaticObject('mug', 2.48213674403, 2.11895497563, 0.798618733883 )
         #     other_mug = StaticObject('mug_2', 8.5, -4.0, 0.798618733883)
@@ -298,8 +314,16 @@ class ObjectParticleFilter(ParticleFilter):
     
     
     def assign_weight(self, particle):
+        region_weight = 1e-3
+        for region, weight in self.valid_regions.items():
+            min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
+            if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
+                # rospy.logwarn("Particle in region {}".format(i))
+                region_weight = weight
+                break
+
         if len(self.observations) == 0:
-            return 1
+            return 1 * region_weight
         for i, observation in enumerate(self.observations):
             err_x = particle[0] - observation.x
             err_y = particle[1] - observation.y
@@ -310,12 +334,17 @@ class ObjectParticleFilter(ParticleFilter):
                 max_phi = phi
             else:
                 max_phi = max(max_phi, phi)
-        return max_phi
+        return max_phi + region_weight
 
     def update_filter(self):
+        count = 0
         for k in range(self.n):
             self.particles[k, :]= self.jitter(self.particles[k, :])
-            self.weights[k] = self.assign_weight(self.particles[k, :])
+            weight = self.assign_weight(self.particles[k, :])
+            if weight == 0:
+                count+=1
+            self.weights[k] = weight
+        # rospy.logwarn("{} had {} particles w 0 weight".format(self.label, count))
         self.weights = self.weights / np.sum(self.weights)
         self.resample()
            
