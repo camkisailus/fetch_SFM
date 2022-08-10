@@ -22,6 +22,7 @@ from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoC
 REGIONS = {
     'table1': (-2.2, -1.2, -1.25, -0.5, 0.0, 1.5),#(-2.2, -1.2, -1.25, -0.5, 0.6, 0.8),
     'table2': (-5.75, -4.75, -2.25, -1.5, 0.0, 1.5),#(-5.75, -4.75, -2.25, -1.5, 0.6, 0.8),
+    'neg1': (-5.75, -4.75, -2.25, -1.5, 0, 1.5),
     'elevator': (-1.2, -1.2, -18.5, -18.5, 0.0, 1.5),#(-1.2, -1.2, -18.5, -18.5, 1, 1),
 }
 ## LAB HALLWAY
@@ -145,6 +146,10 @@ class SFMClient():
         self.bottle_particle_filter = ObjectParticleFilter(100, valid_regions={self.regions['table1']:0.5, self.regions['table2']:0.5}, label='bottle')
         self.bowl_particle_filter = ObjectParticleFilter(100, valid_regions={self.regions['table1']:1}, label='bowl')
         self.spoon_particle_filter = ObjectParticleFilter(100, valid_regions={self.regions['table2']:1}, label='spoon')
+        
+        self.bottle_particle_filter.add_negative_region(self.regions['neg1'])
+        self.bowl_particle_filter.add_negative_region(self.regions['neg1'])
+        self.spoon_particle_filter.add_negative_region(self.regions['neg1'])
         self.object_filters = {'bottle':self.bottle_particle_filter, 'bowl':self.bowl_particle_filter, 'spoon':self.spoon_particle_filter}
         self.state = State()
         self.frame_filters = {}

@@ -5,7 +5,7 @@
     <!-- Run the map server -->
     <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
     <!-- Record a bag -->
-    <node if="$(arg record_bag)" 
+    <!-- <node if="$(arg record_bag)" 
         pkg="rosbag" 
         type="record" 
         name="rosbag_record_node" 
@@ -20,7 +20,7 @@
             /filter/static_object/bottle
             /filter/static_object/spoon"
         output="screen"
-    />
+    /> -->
 
 
     <include file="$(find semantic_frame_mapping)/launch/semantic_frame_mapping.launch"/>

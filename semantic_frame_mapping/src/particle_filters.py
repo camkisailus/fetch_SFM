@@ -69,6 +69,7 @@ class ParticleFilter(object):
         self.particles = np.zeros([n,3])
         self.weights = 1.0/self.n * np.ones([n])
         self.valid_regions = {}
+        self.negative_regions = []
         try:
             for region, weight in valid_regions.items():
                 self.valid_regions[region] = weight
@@ -88,6 +89,9 @@ class ParticleFilter(object):
         for i in range(self.n):
             self.particles[i] = self.reinvigorate(self.particles[i])
         self.bgm = BayesianGaussianMixture(n_components=20, n_init=10, warm_start=False)
+    
+    def add_negative_region(self, region):
+        self.negative_regions.append(region)
     
     def bgmm(self):
         with self.lock:
@@ -321,6 +325,10 @@ class ObjectParticleFilter(ParticleFilter):
                 # rospy.logwarn("Particle in region {}".format(i))
                 region_weight = weight
                 break
+        for region in self.negative_regions:
+            min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
+            if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
+                return 0
 
         if len(self.observations) == 0:
             return 1 * region_weight
@@ -344,7 +352,7 @@ class ObjectParticleFilter(ParticleFilter):
             if weight == 0:
                 count+=1
             self.weights[k] = weight
-        # rospy.logwarn("{} had {} particles w 0 weight".format(self.label, count))
+        rospy.logwarn("{} had {} particles w 0 weight".format(self.label, count))
         self.weights = self.weights / np.sum(self.weights)
         self.resample()
            
