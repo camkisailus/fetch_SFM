@@ -113,9 +113,9 @@ class SFMClient():
         self.regions = {}
         for name, bounds in REGIONS.items():
             self.regions[name] = Region(name, bounds[0], bounds[1],bounds[2], bounds[3], bounds[4], bounds[5])
-        self.bottle_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1'], self.regions['table2']], label='bottle')
+        self.bottle_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1']], label='bottle')
         self.bowl_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1']], label='bowl')
-        self.spoon_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table1'], self.regions['table2']], label='spoon')
+        self.spoon_particle_filter = ObjectParticleFilter(50, valid_regions=[self.regions['table2']], label='spoon')
         self.object_filters = {'bottle':self.bottle_particle_filter, 'bowl':self.bowl_particle_filter, 'spoon':self.spoon_particle_filter}
         self.state = State()
         self.frame_filters = {}
@@ -220,13 +220,15 @@ if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
     foo = SFMClient()
     r = rospy.Rate(10)
-    # i = 0
+    i = 0
     while not rospy.is_shutdown():
+        print("ITR: {}".format(i+1))
         # rospy.loginfo("Updating...")
         foo.update_filters()
         # print(foo.state.action_history)
         # rospy.loginfo(i)
         # if i == 10:
         #     foo.frame_filters['grasp_bottle'].bgmm()
-        # i+=1
+        i+=1
         r.sleep()
+    print("Done!")
