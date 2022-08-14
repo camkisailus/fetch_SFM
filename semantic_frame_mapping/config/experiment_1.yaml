@@ -2,22 +2,6 @@
 
 title: "Experiment_1"
 description: "Foo Bar"
-objects:
-  - name: "spoon"
-    priors:
-      - name: "dining_room"
-        weight: 1
-  - name: "bottle"
-    priors:
-      - name: kitchen
-        weight: 0.5
-      - name: bedroom
-        weight: 0.5
-  - name: "bowl" 
-    priors:
-      - name: "kitchen"
-        weight: 0.5
-  
 regions:
   - name: "dining_room"
     min_x: 4.5
@@ -40,6 +24,27 @@ regions:
     max_y: 2.4
     min_z: 0
     max_z: 1.5
+objects:
+  - name: "spoon"
+    priors:
+      - name: "dining_room"
+        weight: 1
+  - name: "bottle"
+    priors:
+      - name: kitchen
+        weight: 0.5
+      - name: bedroom
+        weight: 0.5
+  - name: "bowl" 
+    priors:
+      - name: "kitchen"
+        weight: 0.5  
+frames:
+  - "grasp_bowl"
+  - "grasp_bottle"
+  - "grasp_spoon"
+  - "pour_bowl"
+  - "stir_bowl"
 observations:
   - name: "spoon"
     x: 6.5
@@ -53,4 +58,6 @@ observations:
     x: 8
     y: -1
     z: 0.8
+steps:
+  - "Update Filters"
 

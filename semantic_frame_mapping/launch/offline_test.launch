@@ -35,15 +35,21 @@
         type="record" 
         name="rosbag_record_node" 
         args="record -o /home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/$(arg experiment_title)
+            /tf
             /map
             /filter/particles/grasp_bottle
             /filter/particles/grasp_spoon
+            /filter/particles/grasp_bowl
             /filter/particles/stir_bowl
+            /filter/particles/pour_bowl
             /filter/gauss/grasp_bottle 
             /filter/gauss/grasp_spoon
+            /filter/gauss/grasp_bowl
             /filter/gauss/stir_bowl
+            /filter/gauss/pour_bowl
             /filter/static_object/bottle
-            /filter/static_object/spoon"
+            /filter/static_object/spoon
+            /filter/static_object/bowl"
         output="screen"
     />
 

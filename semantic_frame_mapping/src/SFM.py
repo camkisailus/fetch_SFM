@@ -155,6 +155,13 @@ class SFMClient():
             for prior in object['priors']:
                 priors[self.regions[prior['name']]] = float(prior['weight'])
             self.object_filters[object['name']] = ObjectParticleFilter(100, valid_regions=priors, label=name)
+        try:
+            for observation in experiment_config['observations']:
+                self.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
+        except KeyError as e:
+            # no observations in the experiment config... that's fine
+            pass
+
         self.state = State()
         self.frame_filters = {}
 
@@ -202,27 +209,26 @@ class SFMClient():
         for _, filter in self.frame_filters.items():
             filter.update_filter(self.state)
             filter.publish()
-            # if filter.label == 'grasp_bottle':
-            #     means, covs, weights = filter.bgmm()
-            #     print("means")
-            #     for cov, weight in zip(covs,weights):
-            #         print('\t{}'.format(cov))
-            #         print('\t\t{}'.format(weight))
-    def go_to(self):
-        self.ac.go_to(1, 1, np.pi)
+
+
     def execute_frame(self, frame_name):
+        rospy.logwarn("Got msg to execute {}".format(frame_name))
         if frame_name.data == 'grasp_bottle':
             means, covs , weights = self.frame_filters['grasp_bottle'].bgmm()
         elif frame_name.data == 'grasp_spoon':
             means, covs , weights = self.frame_filters['grasp_spoon'].bgmm()
         elif frame_name.data == 'stir_bowl':
             means, covs , weights = self.frame_filters['stir_bowl'].bgmm()
-        for m, c, w in zip(means, covs, weights):
-            if w > float(1/len(weights)):
-                print("Weight: {}".format(w))
-                print("Mean: ({:.2f}, {:.2f}, {:.2f})".format(m[0],m[1],m[2]))
-                print("Cov diag: ({:.2f}, {:.2f}, {:.2f})".format(c[0,0], c[1,1], c[2,2]))
-        print("############################################")
+        max_idx = np.argmax(weights)
+        m, c = means[max_idx], covs[max_idx]
+        rospy.logwarn("Max Gaussian is centered at ({:.4f}, {:.4f}, {:.4f})".format(m[0], m[1], m[2]))
+        # self.ac.go_to(m[0], m[1], 0)
+        # for m, c, w in zip(means, covs, weights):
+        #     if w > float(1/len(weights)):
+        #         print("Weight: {}".format(w))
+        #         print("Mean: ({:.2f}, {:.2f}, {:.2f})".format(m[0],m[1],m[2]))
+        #         print("Cov diag: ({:.2f}, {:.2f}, {:.2f})".format(c[0,0], c[1,1], c[2,2]))
+        # print("############################################")
         # if frame_name.data == 'grasp_bottle':
         #     rospy.loginfo("Got request to grasp_bottle")
         #     self.ac.pick()
@@ -269,21 +275,35 @@ if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
     with open(rospy.get_param("~experiment_config"), 'r') as file:
         experiment_config = yaml.safe_load(file)
-        rospy.logwarn("Loaded experimental config")
     foo = SFMClient(experiment_config)
-    r = rospy.Rate(10)
-    i = 0
-    while not rospy.is_shutdown():
-        print("ITR: {}".format(i+1))
-        # if i == 100:
-        #     foo.go_to()
-        # rospy.loginfo("Updating...")
-        foo.update_filters()
-        foo.publish_regions()
-        # print(foo.state.action_history)
-        # rospy.loginfo(i)
-        # if i == 10:
-        #     foo.frame_filters['grasp_bottle'].bgmm()
-        i+=1
-        r.sleep()
-    print("Done!")
+    rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(experiment_config['title']))
+    execute_pub = rospy.Publisher('execute', String, queue_size=10)
+    for step in experiment_config['steps']:
+        if step == "Update Filters":
+            rospy.loginfo("Updating filters")
+            for i in range(100):
+                rospy.logwarn("SFM Driver: Updating Filters Step {}/100".format(i))
+                foo.update_filters()
+        elif step.startswith('Execute'):
+            frame_name = step.split(' ')[-1]
+            execute_pub.publish(frame_name)
+    # while not rospy.is_shutdown():
+    #     rospy.spin()
+    rospy.logwarn("Done!")
+            
+
+    # r = rospy.Rate(10)
+    # i = 0
+    # while not rospy.is_shutdown():
+    #     print("ITR: {}".format(i+1))
+    #     # if i == 100:
+    #     #     foo.go_to()
+    #     # rospy.loginfo("Updating...")
+    #     foo.update_filters()
+    #     foo.publish_regions()
+    #     # print(foo.state.action_history)
+    #     # rospy.loginfo(i)
+    #     # if i == 10:
+    #     #     foo.frame_filters['grasp_bottle'].bgmm()
+    #     i+=1
+    #     r.sleep()

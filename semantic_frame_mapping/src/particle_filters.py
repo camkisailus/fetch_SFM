@@ -315,7 +315,9 @@ class ObjectParticleFilter(ParticleFilter):
                     obj = StaticObject(obj_label, detection.pose.pose.pose.position.x, detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z)
                     self.observations.append(obj)
             
-        
+    def add_observation_from_config(self, x, y, z):
+        self.observations.append(StaticObject(self.label, x, y, z))
+
     def add_observation(self, observation):
         if observation.label == self.label:
             rospy.loginfo("{}_pf: Received observation at ({}, {}, {})".format(self.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z))
