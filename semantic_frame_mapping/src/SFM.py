@@ -19,11 +19,19 @@ from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoC
 #     'table2': (5, 6, 5, 6, 5, 6),
 # }
 ## LAB 06-21-22
+# REGIONS = {
+#     'table1': (-2.2, -1.2, -1.25, -0.5, 0.0, 1.5),#(-2.2, -1.2, -1.25, -0.5, 0.6, 0.8),
+#     'table2': (-5.75, -4.75, -2.25, -1.5, 0.0, 1.5),#(-5.75, -4.75, -2.25, -1.5, 0.6, 0.8),
+#     'neg1': (-5.75, -4.75, -2.25, -1.5, 0, 1.5),
+#     'elevator': (-1.2, -1.2, -18.5, -18.5, 0.0, 1.5),#(-1.2, -1.2, -18.5, -18.5, 1, 1),
+#     # AWS HOUSE STUFF
+    
+# }
+## AWS HOUSE
 REGIONS = {
-    'table1': (-2.2, -1.2, -1.25, -0.5, 0.0, 1.5),#(-2.2, -1.2, -1.25, -0.5, 0.6, 0.8),
-    'table2': (-5.75, -4.75, -2.25, -1.5, 0.0, 1.5),#(-5.75, -4.75, -2.25, -1.5, 0.6, 0.8),
-    'neg1': (-5.75, -4.75, -2.25, -1.5, 0, 1.5),
-    'elevator': (-1.2, -1.2, -18.5, -18.5, 0.0, 1.5),#(-1.2, -1.2, -18.5, -18.5, 1, 1),
+    'dining_room': (4.5, 8.5, 0.5, 3.5, 0, 1.5),
+    'kitchen': (6.5, 9.0, -5, 0, 0, 1.5),
+    'bedroom': (-9.0, -3.0, -1.0, 2.4, 0, 1.5)
 }
 ## LAB HALLWAY
 # ELEVATOR = (-1.0, -18.7, 3.14)
@@ -136,32 +144,26 @@ class ActionClient():
     
     
 class SFMClient():
-    def __init__(self):
+    def __init__(self, experiment_config=None):
+        self.regions = {}
+        for region in experiment_config['regions']:
+            self.regions[region['name']] = Region(region['name'], float(region['min_x']), float(region['max_x']), float(region['min_y']), float(region['max_y']), float(region['min_z']), float(region['max_z']))
+        self.object_filters = {}
+        for object in experiment_config['objects']:
+            name = object['name']
+            priors = {}
+            for prior in object['priors']:
+                priors[self.regions[prior['name']]] = float(prior['weight'])
+            self.object_filters[object['name']] = ObjectParticleFilter(100, valid_regions=priors, label=name)
+        self.state = State()
+        self.frame_filters = {}
+
         self.kb = init_knowledge_base(rospy.get_param('~sf_dir'))
         self.execute_frame_sub = rospy.Subscriber("/execute", String, self.execute_frame)
         self.ac = ActionClient()
-        self.regions = {}
-        for name, bounds in REGIONS.items():
-            self.regions[name] = Region(name, bounds[0], bounds[1],bounds[2], bounds[3], bounds[4], bounds[5])
-        self.bottle_particle_filter = ObjectParticleFilter(100, valid_regions={self.regions['table1']:0.5, self.regions['table2']:0.5}, label='bottle')
-        self.bowl_particle_filter = ObjectParticleFilter(100, valid_regions={self.regions['table1']:1}, label='bowl')
-        self.spoon_particle_filter = ObjectParticleFilter(100, valid_regions={self.regions['table2']:1}, label='spoon')
-        
-        self.bottle_particle_filter.add_negative_region(self.regions['neg1'])
-        self.bowl_particle_filter.add_negative_region(self.regions['neg1'])
-        self.spoon_particle_filter.add_negative_region(self.regions['neg1'])
-        self.object_filters = {'bottle':self.bottle_particle_filter, 'bowl':self.bowl_particle_filter, 'spoon':self.spoon_particle_filter}
-        self.state = State()
-        self.frame_filters = {}
-        self.frame_to_label_dict = {}
-        self.update = True
         for i, frame in enumerate(self.kb):
-            self.frame_to_label_dict[i] = frame.name
             valid_regions = None
-            # valid_regions = [self.regions['table1'], self.regions['table2']]
-            # if frame.name.startswith('go_elevator'):
-            # valid_regions = [self.regions['elevator']]
-            filter = FrameParticleFilter(50, frame.name, frame.preconditions, frame.core_frame_elements, valid_regions)
+            filter = FrameParticleFilter(100, frame.name, frame.preconditions, frame.core_frame_elements, valid_regions)
             for cfe in frame.core_frame_elements:
                 filter.add_frame_element(self.object_filters[cfe], cfe)
             self.frame_filters[frame.name] = filter
@@ -186,6 +188,7 @@ class SFMClient():
                     print("\tpcond: {}, filter: {}".format(name, p_filter.label))
             except AttributeError:
                 print("No preconditions!")
+
     def publish_regions(self):
         for region in self.regions.values():
             region.publish()
@@ -205,7 +208,8 @@ class SFMClient():
             #     for cov, weight in zip(covs,weights):
             #         print('\t{}'.format(cov))
             #         print('\t\t{}'.format(weight))
-    
+    def go_to(self):
+        self.ac.go_to(1, 1, np.pi)
     def execute_frame(self, frame_name):
         if frame_name.data == 'grasp_bottle':
             means, covs , weights = self.frame_filters['grasp_bottle'].bgmm()
@@ -263,11 +267,16 @@ class SFMClient():
 
 if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
-    foo = SFMClient()
+    with open(rospy.get_param("~experiment_config"), 'r') as file:
+        experiment_config = yaml.safe_load(file)
+        rospy.logwarn("Loaded experimental config")
+    foo = SFMClient(experiment_config)
     r = rospy.Rate(10)
     i = 0
     while not rospy.is_shutdown():
-        # print("ITR: {}".format(i+1))
+        print("ITR: {}".format(i+1))
+        # if i == 100:
+        #     foo.go_to()
         # rospy.loginfo("Updating...")
         foo.update_filters()
         foo.publish_regions()

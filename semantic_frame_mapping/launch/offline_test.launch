@@ -1,11 +1,36 @@
 <launch>
-    <arg name="map_file" default="/home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/maps/lab062122.yaml"/>
-    <arg name="record_bag" default="true"/>
+    <arg name="map_file" default="$(find aws_robomaker_small_house_world)/maps/small_house.yaml"/>
+    <arg name="record_bag" default="false"/>
     <arg name="experiment_title" default="test"/>
+    <arg name="robot" default="fetch"/>
+    <arg name="gui" default="false"/>
+    <arg name="experiment_config" default="$(find semantic_frame_mapping)/config/experiment_1.yaml"/>
+
     <!-- Run the map server -->
-    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+    <include file="$(find aws_robomaker_small_house_world)/launch/small_house.launch">
+        <arg name="gui" value="$(arg gui)"/>
+    </include>
+
+    <!-- Fetch robot model in gazebo -->
+    <include file="$(find fetch_gazebo)/launch/include/$(arg robot).launch.xml" />
+
+    <!-- Fetch navigation stack -->
+    <include file="$(find fetch_navigation)/launch/fetch_nav.launch">
+        <arg name="map_file" value="$(arg map_file)"/>
+        <arg name="map_keepout_file" value="$(find aws_robomaker_small_house_world)/maps/small_house_keepout_zones_new.yaml"/>
+        <arg name="use_keepout" value="true"/>
+    </include>
+
+    <!-- SFM Driver-->
+    <include file="$(find semantic_frame_mapping)/launch/semantic_frame_mapping.launch">
+        <arg name="experiment_config" value="$(arg experiment_config)"/>
+    </include>
+    <!-- Fetch Action server -->
+    <include file="$(find fetch_actions)/launch/main.launch"/>
+
+
     <!-- Record a bag -->
-    <!-- <node if="$(arg record_bag)" 
+    <node if="$(arg record_bag)" 
         pkg="rosbag" 
         type="record" 
         name="rosbag_record_node" 
@@ -20,9 +45,8 @@
             /filter/static_object/bottle
             /filter/static_object/spoon"
         output="screen"
-    /> -->
+    />
 
 
-    <include file="$(find semantic_frame_mapping)/launch/semantic_frame_mapping.launch"/>
 
 </launch>

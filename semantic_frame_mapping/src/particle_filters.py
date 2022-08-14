@@ -1,6 +1,6 @@
 #! /usr/bin/python
 
-from random import random
+from random import gauss, random
 
 import rospy
 import numpy as np
@@ -101,11 +101,11 @@ class ParticleFilter(object):
     def reinvigorate(self, particle):
         # if self.valid_regions is None:
             # Random resample in entire map
-        particle[0] = np.random.uniform(-9, 1)
+        particle[0] = np.random.uniform(-11, 9)
         # -9 + np.random.random()*10
-        particle[1] = np.random.uniform(-5, 1)
+        particle[1] = np.random.uniform(-6, 6)
         # -5 + np.random.random()*6
-        particle[2] = np.random.uniform(0, 2)
+        particle[2] = np.random.uniform(0, 3)
         # np.random.random()*2
         # else:
         #     # Random resample in a valid region
@@ -278,11 +278,17 @@ class ObjectParticleFilter(ParticleFilter):
         self.marker_pub = rospy.Publisher('filter/particles/{}'.format(label), MarkerArray, queue_size=10)
         self.observations = []
         # if self.label == 'spoon':
-        #     dummy_obs = StaticObject('spoon', -5, -2, 0.7)
+        #     # 'dining_room': (4.5, 8.5, 0.5, 3.5, 0, 1.5),
+        #     dummy_obs = StaticObject('spoon', 6.5, 2, 0.7)
         #     self.observations.append(dummy_obs)
 
         # if self.label == 'bottle':
-        #     dummy_obs = StaticObject('bottle', -2.2, -1, 0.79)
+        #     # 'kitchen': (6.5, 9.0, -5, 0, 0, 1.5),
+        #     dummy_obs = StaticObject('bottle', 7, -3, 0.79)
+        #     self.observations.append(dummy_obs)
+        # if self.label == 'bowl':
+        #     # 'kitchen': (6.5, 9.0, -5, 0, 0, 1.5),
+        #     dummy_obs = StaticObject('bowl', 8, -1, 0.79)
         #     self.observations.append(dummy_obs)
         # elif self.label == 'mug':
         #     dummy_obs = StaticObject('mug', 2.48213674403, 2.11895497563, 0.798618733883 )
@@ -343,6 +349,25 @@ class ObjectParticleFilter(ParticleFilter):
             else:
                 max_phi = max(max_phi, phi)
         return max_phi + region_weight
+    
+    def resample(self):
+        if len(self.observations) == 0:
+            temp_p = self.particles[:]
+            temp_w = self.weights[:]
+            for i in range(self.n):
+                if temp_w[i] > float(1/self.n):
+                    self.particles[i] = copy.deepcopy(temp_p[i])
+                    self.weights[i] = copy.deepcopy(temp_w[i])
+                else:
+                    self.particles[i] = self.reinvigorate(copy.deepcopy(temp_p[i]))
+                    self.weights[i] = float(1/self.n)
+        else:
+            # x % of particles evenly between observations
+            for i in range(self.n):
+                self.particles[i, 0] = self.observations[0].x
+                self.particles[i, 1] = self.observations[0].y
+                self.particles[i, 2] = self.observations[0].z
+
 
     def update_filter(self):
         count = 0
@@ -352,7 +377,7 @@ class ObjectParticleFilter(ParticleFilter):
             if weight == 0:
                 count+=1
             self.weights[k] = weight
-        rospy.logwarn("{} had {} particles w 0 weight".format(self.label, count))
+        # rospy.logwarn("{} had {} particles w 0 weight".format(self.label, count))
         self.weights = self.weights / np.sum(self.weights)
         self.resample()
            
@@ -371,8 +396,9 @@ class FrameParticleFilter(ParticleFilter):
         else:
             self.preconditions = None
         
-    def publish(self):
-        super(FrameParticleFilter, self).publish()
+    def publish(self, gauss_only=False):
+        if not gauss_only:
+            super(FrameParticleFilter, self).publish()
         arr = MarkerArray()
         means, covs, weights = self.bgmm()
         max_idx = np.argmax(weights)
