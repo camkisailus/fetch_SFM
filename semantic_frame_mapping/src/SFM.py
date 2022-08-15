@@ -165,7 +165,7 @@ class SFMClient():
         self.state = State()
         self.frame_filters = {}
 
-        self.kb = init_knowledge_base(rospy.get_param('~sf_dir'))
+        self.kb = init_knowledge_base(rospy.get_param('~sf_dir'), experiment_config['frames'])
         self.execute_frame_sub = rospy.Subscriber("/execute", String, self.execute_frame)
         self.ac = ActionClient()
         for i, frame in enumerate(self.kb):
@@ -201,14 +201,16 @@ class SFMClient():
             region.publish()
 
 
-    def update_filters(self):
+    def update_filters(self, publish=True):
         # if self.update:
         for _, filter in self.object_filters.items():
             filter.update_filter()
-            filter.publish()
+            if publish:
+                filter.publish()
         for _, filter in self.frame_filters.items():
             filter.update_filter(self.state)
-            filter.publish()
+            if publish:
+                filter.publish()
 
 
     def execute_frame(self, frame_name):
@@ -278,17 +280,22 @@ if __name__ == '__main__':
     foo = SFMClient(experiment_config)
     rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(experiment_config['title']))
     execute_pub = rospy.Publisher('execute', String, queue_size=10)
+    record = rospy.get_param("~record")
     for step in experiment_config['steps']:
         if step == "Update Filters":
             rospy.loginfo("Updating filters")
-            for i in range(100):
+            for i in range(1000000):
                 rospy.logwarn("SFM Driver: Updating Filters Step {}/100".format(i))
-                foo.update_filters()
+                if record:
+                    # if we are recording a bag publish every time
+                    foo.update_filters(publish=True)
+                else:
+                    # if not just publish every 10 updates
+                    foo.update_filters(publish=(i%10==0))
+                foo.publish_regions()
         elif step.startswith('Execute'):
             frame_name = step.split(' ')[-1]
             execute_pub.publish(frame_name)
-    # while not rospy.is_shutdown():
-    #     rospy.spin()
     rospy.logwarn("Done!")
             
 

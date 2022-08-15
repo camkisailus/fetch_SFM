@@ -1,33 +1,34 @@
 <launch>
     <arg name="map_file" default="$(find aws_robomaker_small_house_world)/maps/small_house.yaml"/>
     <arg name="record_bag" default="false"/>
-    <arg name="experiment_title" default="test"/>
+    <arg name="experiment_title" default=""/>
     <arg name="robot" default="fetch"/>
     <arg name="gui" default="false"/>
-    <arg name="experiment_config" default="$(find semantic_frame_mapping)/config/experiment_1.yaml"/>
+    <arg name="experiment_config" default="$(find semantic_frame_mapping)/config/$(arg experiment_title).yaml"/>
 
-    <!-- Run the map server -->
-    <include file="$(find aws_robomaker_small_house_world)/launch/small_house.launch">
+    <!-- Gazebo -->
+    <!-- <include file="$(find aws_robomaker_small_house_world)/launch/small_house.launch">
         <arg name="gui" value="$(arg gui)"/>
-    </include>
+    </include> -->
 
-    <!-- Fetch robot model in gazebo -->
-    <include file="$(find fetch_gazebo)/launch/include/$(arg robot).launch.xml" />
-
-    <!-- Fetch navigation stack -->
-    <include file="$(find fetch_navigation)/launch/fetch_nav.launch">
+    <!-- Fetch robot model in Gazebo -->
+    <!-- <include file="$(find fetch_gazebo)/launch/include/$(arg robot).launch.xml" /> -->
+    <!-- Fetch navigation stack and map server-->
+    <!-- <include file="$(find fetch_navigation)/launch/fetch_nav.launch">
         <arg name="map_file" value="$(arg map_file)"/>
         <arg name="map_keepout_file" value="$(find aws_robomaker_small_house_world)/maps/small_house_keepout_zones_new.yaml"/>
         <arg name="use_keepout" value="true"/>
-    </include>
+    </include> -->
 
+            <!-- Fetch Action server -->
+        <!-- <include file="$(find fetch_actions)/launch/main.launch"/> -->
+    
+    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" output="log"/>
     <!-- SFM Driver-->
     <include file="$(find semantic_frame_mapping)/launch/semantic_frame_mapping.launch">
         <arg name="experiment_config" value="$(arg experiment_config)"/>
+        <arg name="record" value="$(arg record_bag)"/>
     </include>
-    <!-- Fetch Action server -->
-    <include file="$(find fetch_actions)/launch/main.launch"/>
-
 
     <!-- Record a bag -->
     <node if="$(arg record_bag)" 
@@ -37,20 +38,22 @@
         args="record -o /home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/$(arg experiment_title)
             /tf
             /map
-            /filter/particles/grasp_bottle
-            /filter/particles/grasp_spoon
             /filter/particles/grasp_bowl
+            /filter/particles/grasp_cup
+            /filter/particles/grasp_spoon
             /filter/particles/stir_bowl
             /filter/particles/pour_bowl
-            /filter/gauss/grasp_bottle 
-            /filter/gauss/grasp_spoon
+            /filter/particles/stir_cup
             /filter/gauss/grasp_bowl
+            /filter/gauss/grasp_cup
+            /filter/gauss/grasp_spoon
             /filter/gauss/stir_bowl
             /filter/gauss/pour_bowl
-            /filter/static_object/bottle
+            /filter/gauss/stir_cup
+            /filter/static_object/cup
             /filter/static_object/spoon
             /filter/static_object/bowl"
-        output="screen"
+        output="log"
     />
 
 

@@ -228,7 +228,7 @@ class ParticleFilter(object):
             marker = Marker()
             marker.id = i
             marker.header.frame_id = 'map'
-            if self.label == 'bottle':
+            if self.label == 'cup':
                 # red cube
                 marker.color.r = 1
                 marker.type = marker.CUBE
@@ -240,7 +240,7 @@ class ParticleFilter(object):
                 # green cube
                 marker.color.g = 1
                 marker.type = marker.CUBE
-            elif self.label == 'grasp_bottle':
+            elif self.label == 'grasp_cup':
                 # red sphere
                 marker.color.r = 1
                 marker.type = marker.SPHERE
@@ -248,10 +248,23 @@ class ParticleFilter(object):
                 # blue sphere
                 marker.color.b = 1
                 marker.type = marker.SPHERE
-            elif self.label == 'stir_bowl':
+            elif self.label == 'grasp_bowl':
                 # green sphere
                 marker.color.g = 1
-                marker.type = marker.SPHERE           
+                marker.type = marker.SPHERE
+            elif self.label == 'pour_bowl':
+                marker.color.r = 1
+                marker.color.g = 1
+                marker.type = marker.SPHERE  
+            elif self.label == 'stir_bowl':
+                marker.color.b = 1
+                marker.color.g = 1
+                marker.type = marker.SPHERE
+            elif self.label == 'stir_cup':
+                marker.color.b = 1
+                marker.color.r = 1
+                marker.type = marker.SPHERE
+                    
             
             marker.action = marker.ADD
             marker.scale.x = 0.2
@@ -365,10 +378,19 @@ class ObjectParticleFilter(ParticleFilter):
                     self.weights[i] = float(1/self.n)
         else:
             # x % of particles evenly between observations
-            for i in range(self.n):
-                self.particles[i, 0] = self.observations[0].x
-                self.particles[i, 1] = self.observations[0].y
-                self.particles[i, 2] = self.observations[0].z
+            r = int(self.n * 0.2)
+            for i in range(r):
+                obs = self.observations[i%len(self.observations)]
+                self.particles[i, 0] = obs.x
+                self.particles[i, 1] = obs.y
+                self.particles[i, 2] = obs.z
+            for i in range(r, self.n):
+                self.particles[i] = self.reinvigorate(copy.deepcopy(self.particles[i]))
+                self.weights[i] = float(1/self.n)
+            # for i in range(self.n):
+            #     self.particles[i, 0] = self.observations[0].x
+            #     self.particles[i, 1] = self.observations[0].y
+            #     self.particles[i, 2] = self.observations[0].z
 
 
     def update_filter(self):
@@ -410,53 +432,81 @@ class FrameParticleFilter(ParticleFilter):
                 if norm == 0: 
                     return v
                 return v / norm
-            # m, c, _ = means[idx], covs[idx], weights[idx]
-
-        """
-        n = 3
+        n = 2
         indices = (-weights).argsort()[:n]
         count = 0
         for idx in indices:
-            
-        """
+            m, c, _ = means[idx], covs[idx], weights[idx]
 
 
-        (eigValues,eigVectors) = np.linalg.eig(c)
-        eigx_n = np.array([eigVectors[0,0],eigVectors[0,1],eigVectors[0,2]]).reshape(1,3)
-        eigy_n=-np.array([eigVectors[1,0],eigVectors[1,1],eigVectors[1,2]]).reshape(1,3)
-        eigz_n= np.array([eigVectors[2,0],eigVectors[2,1],eigVectors[2,2]]).reshape(1,3)
-        eigx_n = normalize(eigx_n)
-        eigy_n = normalize(eigy_n)
-        eigz_n = normalize(eigz_n)
-        rot_mat = np.hstack([eigx_n.T, eigy_n.T, eigz_n.T])
-        rot = R.from_matrix(rot_mat)
-        quat = rot.as_quat()
-        marker = Marker()
-        marker.id = 0
-        marker.type = Marker.SPHERE
-        marker.action = Marker.ADD
-        marker.pose.position.x = m[0]
-        marker.pose.position.y = m[1]
-        marker.pose.position.z = m[2]
-        marker.header.frame_id = 'map'
-        marker.pose.orientation.x = quat[0]
-        marker.pose.orientation.y = quat[1]
-        marker.pose.orientation.z = quat[2]
-        marker.pose.orientation.w = quat[3]
-        marker.scale.x = eigValues[0]*2
-        marker.scale.y = eigValues[1]*2
-        marker.scale.z = eigValues[2]*2
+            (eigValues,eigVectors) = np.linalg.eig(c)
+            eigx_n = np.array([eigVectors[0,0],eigVectors[0,1],eigVectors[0,2]]).reshape(1,3)
+            eigy_n=-np.array([eigVectors[1,0],eigVectors[1,1],eigVectors[1,2]]).reshape(1,3)
+            eigz_n= np.array([eigVectors[2,0],eigVectors[2,1],eigVectors[2,2]]).reshape(1,3)
+            eigx_n = normalize(eigx_n)
+            eigy_n = normalize(eigy_n)
+            eigz_n = normalize(eigz_n)
+            rot_mat = np.hstack([eigx_n.T, eigy_n.T, eigz_n.T])
+            rot = R.from_matrix(rot_mat)
+            quat = rot.as_quat()
+            marker = Marker()
+            marker.id = count
+            # count+=1
+            marker.type = Marker.SPHERE
+            marker.action = Marker.ADD
+            marker.pose.position.x = m[0]
+            marker.pose.position.y = m[1]
+            marker.pose.position.z = m[2]
+            marker.header.frame_id = 'map'
+            marker.pose.orientation.x = quat[0]
+            marker.pose.orientation.y = quat[1]
+            marker.pose.orientation.z = quat[2]
+            marker.pose.orientation.w = quat[3]
+            marker.scale.x = eigValues[0]*2
+            marker.scale.y = eigValues[1]*2
+            marker.scale.z = eigValues[2]*2
+            if np.sqrt(marker.scale.x**2 + marker.scale.y**2 + marker.scale.z**2) > 20:
+                break
 
-        marker.color.a = 0.5
-        # marker.color.a = 1 - count*0.35
-        # count+=1
-        if self.label == 'grasp_bottle':
-            marker.color.r = 1.0
-        elif self.label == 'grasp_spoon':
-            marker.color.b = 1.0
-        elif self.label == 'stir_bowl':
-            marker.color.g = 1
-        arr.markers.append(marker)
+            # marker.color.a = 0.5
+            marker.color.a = 0.75 - count*0.5
+            count+=1
+            if self.label == 'cup':
+                # red cube
+                marker.color.r = 1
+ 
+            elif self.label == 'spoon':
+                # blue cube
+                marker.color.b = 1
+
+            elif self.label == 'bowl':
+                # green cube
+                marker.color.g = 1
+
+            elif self.label == 'grasp_cup':
+                # red sphere
+                marker.color.r = 1
+
+            elif self.label == 'grasp_spoon':
+                # blue sphere
+                marker.color.b = 1
+
+            elif self.label == 'grasp_bowl':
+                # green sphere
+                marker.color.g = 1
+ 
+            elif self.label == 'pour_bowl':
+                marker.color.r = 1
+                marker.color.g = 1
+ 
+            elif self.label == 'stir_bowl':
+                marker.color.b = 1
+                marker.color.g = 1
+
+            elif self.label == 'stir_cup':
+                marker.color.b = 1
+                marker.color.r = 1
+            arr.markers.append(marker)
         
         self.gauss_pub.publish(arr)
 
