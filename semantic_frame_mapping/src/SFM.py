@@ -5,7 +5,7 @@ import rospy
 from particle_filters import *
 from utils import *
 from std_msgs.msg import Bool
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, PoseWithCovarianceStamped, Pose
 from std_msgs.msg import String
 from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal
 
@@ -73,10 +73,8 @@ class Region():
         self.marker = Marker()
         self.marker.id = 0
         self.marker.header.frame_id = 'map'
-        if self.name == 'table1':
+        if name.startswith("neg"):
             self.marker.color.r = 1
-        elif self.name == 'table2':
-            self.marker.color.b = 1
         
         self.marker.color.a = 0.5
         self.marker.type = Marker.CUBE
@@ -92,6 +90,7 @@ class Region():
         # rospy.logwarn(self.name)
         # rospy.logwarn(self.marker)
         self.pub.publish(self.marker)
+
     def publish(self):
 
         self.pub.publish(self.marker)        
@@ -108,20 +107,30 @@ class ActionClient():
         self.pick_client = actionlib.SimpleActionClient("kisailus_pick", PickRequestAction)
         self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
         self.point_head_pub = rospy.Publisher('/point_head/at', Point, queue_size=10)
-        
-    def go_to(self, x, y, theta):
+        self.cur_pose_sub = rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.pose_cb)
+        self.cur_pose = Pose()
+
+    def pose_cb(self, pose_msg):
+        self.cur_pose = pose_msg.pose.pose
+
+    def get_pose(self):
+        return self.cur_pose
+
+    def go_to(self, x, y, z, theta):
         request = MoveBaseRequestGoal()
         request.x = x
         request.y = y
         request.theta = theta
         self.move_base_client.send_goal(request)
         self.move_base_client.wait_for_result()
+        return self.move_base_client.get_result()
 
     def move_torso(self, height):
         request = TorsoControlRequestGoal()
         request.height = height
         self.torso_client.send_goal(request)
         self.torso_client.wait_for_result()
+        return self.torso_client.get_result()
     
     def point_head(self, x, y, z):
         request = PointHeadRequestGoal()
@@ -145,6 +154,7 @@ class ActionClient():
     
 class SFMClient():
     def __init__(self, experiment_config=None):
+        self.neg_regions = []
         self.regions = {}
         for region in experiment_config['regions']:
             self.regions[region['name']] = Region(region['name'], float(region['min_x']), float(region['max_x']), float(region['min_y']), float(region['max_y']), float(region['min_z']), float(region['max_z']))
@@ -155,12 +165,14 @@ class SFMClient():
             for prior in object['priors']:
                 priors[self.regions[prior['name']]] = float(prior['weight'])
             self.object_filters[object['name']] = ObjectParticleFilter(100, valid_regions=priors, label=name)
-        try:
-            for observation in experiment_config['observations']:
-                self.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
-        except KeyError as e:
-            # no observations in the experiment config... that's fine
-            pass
+        # self.observations = {}
+        # try:
+        #     for observation in experiment_config['observations']:
+        #         self.observations[]
+        #         self.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
+        # except KeyError as e:
+        #     # no observations in the experiment config... that's fine
+        #     pass
 
         self.state = State()
         self.frame_filters = {}
@@ -195,9 +207,12 @@ class SFMClient():
                     print("\tpcond: {}, filter: {}".format(name, p_filter.label))
             except AttributeError:
                 print("No preconditions!")
+        
 
     def publish_regions(self):
         for region in self.regions.values():
+            region.publish()
+        for region in self.neg_regions:
             region.publish()
 
 
@@ -205,25 +220,56 @@ class SFMClient():
         # if self.update:
         for _, filter in self.object_filters.items():
             filter.update_filter()
+            # rospy.logwarn(filter.label)
             if publish:
                 filter.publish()
         for _, filter in self.frame_filters.items():
             filter.update_filter(self.state)
+            # rospy.logwarn(filter.label)
             if publish:
                 filter.publish()
+    
+    def add_observations(self, possible_observations=[]):
+        # add observations if they are within 5m of the robot's current pose
+        cur_pose = self.ac.get_pose()
+        rospy.logwarn("Cur pose is ({:.4f}, {:.4f})".format(cur_pose.position.x, cur_pose.position.y))
+        for _, filter in self.object_filters.items():
+            added = False
+            for observation in possible_observations:
+                x_dist = (observation['x'] - cur_pose.position.x)**2
+                y_dist = (observation['y'] - cur_pose.position.y)**2
+                if np.sqrt(x_dist + y_dist) < 5.0:
+                    filter.add_observation_from_config(observation['x'], observation['y'], observation['z'])
+                    added = True
+            if not added:
+                rospy.logwarn("Adding neg region to {}".format(filter.label))
+                min_x = cur_pose.position.x - 2
+                max_x = cur_pose.position.x + 2
+                min_y = cur_pose.position.y - 2
+                max_y = cur_pose.position.y + 2
+                min_z = 0
+                max_z = 1.5
+                reg = Region("{}_neg_reg_{}".format(filter.label, len(self.neg_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
+                filter.add_negative_region(reg)
+                self.neg_regions.append(reg)
+
+
+
 
 
     def execute_frame(self, frame_name):
         rospy.logwarn("Got msg to execute {}".format(frame_name))
-        if frame_name.data == 'grasp_bottle':
-            means, covs , weights = self.frame_filters['grasp_bottle'].bgmm()
-        elif frame_name.data == 'grasp_spoon':
-            means, covs , weights = self.frame_filters['grasp_spoon'].bgmm()
-        elif frame_name.data == 'stir_bowl':
-            means, covs , weights = self.frame_filters['stir_bowl'].bgmm()
+        # if frame_name == 'grasp_bottle':
+        #     means, covs , weights = self.frame_filters['grasp_bottle'].bgmm()
+        # elif frame_name == 'grasp_spoon':
+        #     means, covs , weights = self.frame_filters['grasp_spoon'].bgmm()
+        # elif frame_name == 'stir_bowl':
+        #     means, covs , weights = self.frame_filters['stir_bowl'].bgmm()
+        means, covs, weights = self.frame_filters[frame_name].bgmm()
         max_idx = np.argmax(weights)
         m, c = means[max_idx], covs[max_idx]
-        rospy.logwarn("Max Gaussian is centered at ({:.4f}, {:.4f}, {:.4f})".format(m[0], m[1], m[2]))
+        rospy.logwarn("Max Gaussian is centered at ({:.4f}, {:.4f})".format(m[0], m[1]))
+        return self.ac.go_to(m[0], m[1], m[2], 0)
         # self.ac.go_to(m[0], m[1], 0)
         # for m, c, w in zip(means, covs, weights):
         #     if w > float(1/len(weights)):
@@ -284,8 +330,9 @@ if __name__ == '__main__':
     for step in experiment_config['steps']:
         if step == "Update Filters":
             rospy.loginfo("Updating filters")
-            for i in range(1000000):
-                rospy.logwarn("SFM Driver: Updating Filters Step {}/100".format(i))
+            update_steps = 50
+            for i in range(update_steps):
+                # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
                 if record:
                     # if we are recording a bag publish every time
                     foo.update_filters(publish=True)
@@ -295,11 +342,25 @@ if __name__ == '__main__':
                 foo.publish_regions()
         elif step.startswith('Execute'):
             frame_name = step.split(' ')[-1]
-            execute_pub.publish(frame_name)
-    rospy.logwarn("Done!")
-            
+            if foo.execute_frame(frame_name):
+                rospy.logwarn("SFM Driver: Execution Success")
+            else:
+                rospy.logwarn("SFM Driver: Execution Failure")
+        elif step == "Observe":
+            try:
+                foo.add_observations(experiment_config['observations'])
+            except KeyError:
+                foo.add_observations()
+            # for observation in experiment_config['observations']:
+            #     foo.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
 
-    # r = rospy.Rate(10)
+            # execute_pub.publish(frame_name)
+    rospy.logwarn("Done!")
+    r = rospy.Rate(10)
+    while not rospy.is_shutdown():
+        foo.publish_regions()
+        r.sleep()      
+
     # i = 0
     # while not rospy.is_shutdown():
     #     print("ITR: {}".format(i+1))

@@ -42,10 +42,10 @@ objects:
     priors:
       - name: kitchen
         weight: 0.5
-      - name: living_room
+      - name: dining_room
         weight: 0.5
 observations:
-  - name: "spoon"
+  - name: "cup"
     x: 8.0
     y: -2.5
     z: 0.8
@@ -55,4 +55,9 @@ frames:
   - "stir_cup"
 steps:
   - "Update Filters"
+  - "Execute stir_cup"
+  - "Observe"
+  - "Update Filters"
+  - "Execute stir_cup"
+  # - "Observe"
 

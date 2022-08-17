@@ -267,7 +267,7 @@ class ParticleFilter(object):
                     
             
             marker.action = marker.ADD
-            marker.lifetime = rospy.Duration(10)
+            # marker.lifetime = rospy.Duration(10)
             marker.scale.x = 0.2
             marker.scale.y = 0.2
             marker.scale.z = 0.2
@@ -452,7 +452,7 @@ class FrameParticleFilter(ParticleFilter):
             quat = rot.as_quat()
             marker = Marker()
             marker.id = count
-            # count+=1
+            count+=1
             marker.type = Marker.SPHERE
             marker.action = Marker.ADD
             marker.pose.position.x = m[0]
@@ -470,8 +470,10 @@ class FrameParticleFilter(ParticleFilter):
                 break
 
             # marker.color.a = 0.5
-            marker.color.a = 0.75 - count*0.5
-            count+=1
+            if count > 1:
+                marker.lifetime = rospy.Duration(10)
+            marker.color.a = 0.75 - count*0.2
+            # count+=1
             if self.label == 'cup':
                 # red cube
                 marker.color.r = 1
@@ -507,7 +509,7 @@ class FrameParticleFilter(ParticleFilter):
             elif self.label == 'stir_cup':
                 marker.color.b = 1
                 marker.color.r = 1
-            marker.lifetime = rospy.Duration(10)
+            # marker.lifetime = rospy.Duration(10)
             arr.markers.append(marker)
         
         self.gauss_pub.publish(arr)
