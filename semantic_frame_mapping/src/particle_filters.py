@@ -65,7 +65,7 @@ class StaticObject(object):
 class ParticleFilter(object):
     def __init__(self, n, label, valid_regions):
         self.n = n
-        self.Sigma = np.array([[0.02, 0, 0], [0, 0.02, 0], [0, 0, 0.02]])
+        self.Sigma = np.array([[0.02, 0, 0], [0, 0.02, 0], [0, 0, 0.0]])
         self.particles = np.zeros([n,3])
         self.weights = 1.0/self.n * np.ones([n])
         self.valid_regions = {}
@@ -101,11 +101,11 @@ class ParticleFilter(object):
     def reinvigorate(self, particle):
         # if self.valid_regions is None:
             # Random resample in entire map
-        particle[0] = np.random.uniform(-11, 9)
+        particle[0] = np.random.uniform(-9, 9)
         # -9 + np.random.random()*10
         particle[1] = np.random.uniform(-6, 6)
         # -5 + np.random.random()*6
-        particle[2] = np.random.uniform(0, 3)
+        particle[2] = 0# np.random.uniform(0, 3)
         # np.random.random()*2
         # else:
         #     # Random resample in a valid region
@@ -177,12 +177,14 @@ class ParticleFilter(object):
         # self.weights = 1/self.n * np.ones([self.n])
 
         ## all particles over 1/n weight get resampled all less than get reinvigorated
+        count = 0
         temp_p = self.particles[:]
         temp_w = self.weights[:]
         for i in range(self.n):
-            if temp_w[i] > float(1/self.n):
+            if temp_w[i] > float(1/self.n) and count < int(self.n*0.8):
                 self.particles[i] = copy.deepcopy(temp_p[i])
                 self.weights[i] = copy.deepcopy(temp_w[i])
+                count += 1
             else:
                 self.particles[i] = self.reinvigorate(copy.deepcopy(temp_p[i]))
                 self.weights[i] = float(1/self.n)
@@ -206,10 +208,10 @@ class ParticleFilter(object):
     def jitter(self, particle):
         x_noise = np.random.normal(0, self.Sigma[0,0])
         y_noise = np.random.normal(0, self.Sigma[1,1])
-        z_noise = np.random.normal(0, self.Sigma[2,2])
+        # z_noise = np.random.normal(0, self.Sigma[2,2])
         particle[0] += x_noise
         particle[1] += y_noise
-        particle[2] += z_noise
+        # particle[2] += z_noise
         return particle
 
     def update_filter(self):
@@ -271,10 +273,11 @@ class ParticleFilter(object):
             marker.scale.x = 0.2
             marker.scale.y = 0.2
             marker.scale.z = 0.2
-            if self.weights[i] < threshold:
-                marker.color.a = self.weights[i]/threshold
-            else:
-                marker.color.a = 1.0
+            marker.color.a = 0.7
+            # if self.weights[i] < threshold:
+            #     marker.color.a = self.weights[i]/threshold
+            # else:
+            #     marker.color.a = 1.0
             marker.pose.orientation.w = 1.0
             marker.pose.position.x = self.particles[i, 0]
             marker.pose.position.y = self.particles[i, 1]
@@ -340,6 +343,10 @@ class ObjectParticleFilter(ParticleFilter):
     
     
     def assign_weight(self, particle):
+        for region in self.negative_regions:
+            min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
+            if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
+                return 0
         region_weight = 1e-3
         for region, weight in self.valid_regions.items():
             min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
@@ -347,13 +354,9 @@ class ObjectParticleFilter(ParticleFilter):
                 # rospy.logwarn("Particle in region {}".format(i))
                 region_weight = weight
                 break
-        for region in self.negative_regions:
-            min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
-            if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
-                return 0
-
         if len(self.observations) == 0:
             return 1 * region_weight
+        
         for i, observation in enumerate(self.observations):
             err_x = particle[0] - observation.x
             err_y = particle[1] - observation.y
@@ -379,15 +382,31 @@ class ObjectParticleFilter(ParticleFilter):
                     self.weights[i] = float(1/self.n)
         else:
             # x % of particles evenly between observations
-            r = int(self.n * 0.2)
-            for i in range(r):
+            temp_p = self.particles[:]
+            temp_w = self.weights[:]
+            indexes = self.systematic_resample()
+            count = 0
+            while count < int(self.n*0.8):
+                self.particles[count] = temp_p[indexes[count]]
+                # rospy.logwarn(temp_w[index])
+                self.weights[count] = temp_w[indexes[count]]
+                count+=1
+            for i in range(count, self.n):
                 obs = self.observations[i%len(self.observations)]
-                self.particles[i, 0] = obs.x
-                self.particles[i, 1] = obs.y
-                self.particles[i, 2] = obs.z
-            for i in range(r, self.n):
-                self.particles[i] = self.reinvigorate(copy.deepcopy(self.particles[i]))
-                self.weights[i] = float(1/self.n)
+                self.particles[i,0] = obs.x
+                self.particles[i,1] = obs.y
+                self.particles[i,2] = obs.z
+            assert(self.particles.shape[0] == self.n)
+                
+            # r = int(self.n * 0.2)
+            # for i in range(r):
+            #     obs = self.observations[i%len(self.observations)]
+            #     self.particles[i, 0] = obs.x
+            #     self.particles[i, 1] = obs.y
+            #     self.particles[i, 2] = obs.z
+            # for i in range(r, self.n):
+            #     self.particles[i] = self.reinvigorate(copy.deepcopy(self.particles[i]))
+            #     self.weights[i] = float(1/self.n)
             # for i in range(self.n):
             #     self.particles[i, 0] = self.observations[0].x
             #     self.particles[i, 1] = self.observations[0].y

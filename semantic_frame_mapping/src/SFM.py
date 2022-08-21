@@ -54,9 +54,17 @@ class State():
     def __init__(self):
         self.action_history = ['idle']
         self.ah_sub = rospy.Subscriber("/add_action_to_action_history", String, self.add_action_to_action_history)
+        self.robot_pose_sub = rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.update_pose)
+        self.pose = Pose()
+    
+    def update_pose(self, pose_msg):
+        self.pose = pose_msg.pose.pose
     
     def add_action_to_action_history(self, action_taken):
-        self.action_history.append(action_taken.data)
+        try:
+            self.action_history.append(action_taken.data)
+        except AttributeError:
+            self.action_history.append(action_taken)
 
 class Region():
     def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z):
@@ -90,6 +98,9 @@ class Region():
         # rospy.logwarn(self.name)
         # rospy.logwarn(self.marker)
         self.pub.publish(self.marker)
+    
+    def __hash__(self):
+        return hash(self.name)
 
     def publish(self):
 
@@ -116,7 +127,7 @@ class ActionClient():
     def get_pose(self):
         return self.cur_pose
 
-    def go_to(self, x, y, z, theta):
+    def go_to(self, x, y, theta):
         request = MoveBaseRequestGoal()
         request.x = x
         request.y = y
@@ -154,8 +165,11 @@ class ActionClient():
     
 class SFMClient():
     def __init__(self, experiment_config=None):
-        self.neg_regions = []
+        self.neg_regions = set()
         self.regions = {}
+        self.experiment_config = experiment_config
+        self.record = rospy.get_param("~record")
+        self.start_exp_sub = rospy.Subscriber("/start_experiment", String, self.run)
         for region in experiment_config['regions']:
             self.regions[region['name']] = Region(region['name'], float(region['min_x']), float(region['max_x']), float(region['min_y']), float(region['max_y']), float(region['min_z']), float(region['max_z']))
         self.object_filters = {}
@@ -182,7 +196,7 @@ class SFMClient():
         self.ac = ActionClient()
         for i, frame in enumerate(self.kb):
             valid_regions = None
-            filter = FrameParticleFilter(100, frame.name, frame.preconditions, frame.core_frame_elements, valid_regions)
+            filter = FrameParticleFilter(200, frame.name, frame.preconditions, frame.core_frame_elements, valid_regions)
             for cfe in frame.core_frame_elements:
                 filter.add_frame_element(self.object_filters[cfe], cfe)
             self.frame_filters[frame.name] = filter
@@ -231,8 +245,8 @@ class SFMClient():
     
     def add_observations(self, possible_observations=[]):
         # add observations if they are within 5m of the robot's current pose
-        cur_pose = self.ac.get_pose()
-        rospy.logwarn("Cur pose is ({:.4f}, {:.4f})".format(cur_pose.position.x, cur_pose.position.y))
+        cur_pose = self.state.pose
+        # rospy.logwarn("Cur pose is ({:.4f}, {:.4f})".format(cur_pose.position.x, cur_pose.position.y))
         for _, filter in self.object_filters.items():
             added = False
             for observation in possible_observations:
@@ -251,71 +265,164 @@ class SFMClient():
                 max_z = 1.5
                 reg = Region("{}_neg_reg_{}".format(filter.label, len(self.neg_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
                 filter.add_negative_region(reg)
-                self.neg_regions.append(reg)
+                self.neg_regions.add(reg)
 
+    def run_observation_routine(self, frame=None):
+        """
+        This is a simulated object detection method
+         
+        If the robot in near or in a region that an object is in, we add the observation
+        else, add that region as a negative obersvation region for that object
+        
+        """
+        cur_pose = self.state.pose
+        min_x = cur_pose.position.x - 2
+        max_x = cur_pose.position.x + 2
+        min_y = cur_pose.position.y - 2
+        max_y = cur_pose.position.y + 2
+        min_z = 0
+        max_z = 2.0
+        reg = Region("neg_reg_{}".format(len(self.neg_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
+        region_added = False
+        pos_added = []
+        rospy.logwarn("Frame is {}".format(frame))
+        # rospy.logwarn("cur robot pose is: ({}, {})".format(cur_pose.position.x, cur_pose.position.y))
+        for _, filter in self.object_filters.items():
+            try:
+                for obs in self.experiment_config['observations']:
+                    # rospy.logwarn("{} location is ({}, {})".format(obs['name'], obs['x'], obs['y']))
+                    # if obs['name'] != filter.label:
+                    #     continue
+                    x_err =  (obs['x'] - self.state.pose.position.x)**2
+                    y_err = (obs['y'] - self.state.pose.position.y)**2
+                    if np.sqrt(x_err + y_err ) <= 1 and obs['name'] == filter.label:
+                        if frame == 'grasp_spoon' and filter.label == 'spoon':
+                        # simulate completed action
+                            rospy.logwarn("Successfully completed {}".format(frame))
+                            return True
+                        elif frame == 'stir_cup' and filter.label == 'cup':
+                            rospy.logwarn("Successfully completed {}".format(frame))
+                            return True
+                    elif np.sqrt(x_err + y_err) < 5 and obs['name'] == filter.label:
+                        rospy.logwarn("Adding observation to {} dist to obj is {}".format(filter.label, np.sqrt(x_err+y_err)))
+                        filter.add_observation_from_config(obs['x'], obs['y'], obs['z'])
+                        pos_added.append(filter.label)
+
+            except KeyError:
+                # no observations defined in the experiment
+                pass
+        for _, filter in self.object_filters.items():
+            if filter.label not in pos_added:
+                rospy.logwarn("Adding neg region to {}".format(filter.label))
+                filter.add_negative_region(reg)
+                self.neg_regions.add(reg)
+        return False
 
 
 
 
     def execute_frame(self, frame_name):
         rospy.logwarn("Got msg to execute {}".format(frame_name))
-        # if frame_name == 'grasp_bottle':
-        #     means, covs , weights = self.frame_filters['grasp_bottle'].bgmm()
-        # elif frame_name == 'grasp_spoon':
-        #     means, covs , weights = self.frame_filters['grasp_spoon'].bgmm()
-        # elif frame_name == 'stir_bowl':
-        #     means, covs , weights = self.frame_filters['stir_bowl'].bgmm()
-        means, covs, weights = self.frame_filters[frame_name].bgmm()
-        max_idx = np.argmax(weights)
-        m, c = means[max_idx], covs[max_idx]
-        rospy.logwarn("Max Gaussian is centered at ({:.4f}, {:.4f})".format(m[0], m[1]))
-        return self.ac.go_to(m[0], m[1], m[2], 0)
-        # self.ac.go_to(m[0], m[1], 0)
-        # for m, c, w in zip(means, covs, weights):
-        #     if w > float(1/len(weights)):
-        #         print("Weight: {}".format(w))
-        #         print("Mean: ({:.2f}, {:.2f}, {:.2f})".format(m[0],m[1],m[2]))
-        #         print("Cov diag: ({:.2f}, {:.2f}, {:.2f})".format(c[0,0], c[1,1], c[2,2]))
-        # print("############################################")
-        # if frame_name.data == 'grasp_bottle':
-        #     rospy.loginfo("Got request to grasp_bottle")
-        #     self.ac.pick()
-        # elif frame_name.data == 'pour_bottle':
-        #     rospy.loginfo("POUR BOTTLE")
-        # else:
-        #     rospy.logwarn("INVALID action")
+        if self.frame_filters[frame_name].preconditions is not None:
+            preconditions = self.frame_filters[frame_name].preconditions
+        else:
+            preconditons = []
+        rospy.logwarn("{} has preconditions: {}".format(frame_name, preconditions))
+        for frame in preconditions:
+            if frame in self.state.action_history:
+                # pop action off preconditions since it's completed
+                preconditions = preconditions[1:]
+            else:
+                cur_action = frame
+        rospy.logwarn("Cur action is : {}".format(cur_action))
+        
+        # preconditions = self.frame_filters[frame_name].preconditions
+        for precondition in preconditions:
+            chances = 3
+            precondition_complete = False
+            while chances > 0 and not precondition_complete:
+                rospy.logwarn("Updating filters with {} chance(s) remaining".format(chances))
+                # update filters
+                update_steps = 50
+                for i in range(update_steps):
+                    # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
+                    if self.record:
+                        # if we are recording a bag publish every time
+                        self.update_filters(publish=True)
+                    else:
+                        # if not just publish every 10 updates
+                        self.update_filters(publish=(i%10==0))
+                # go to max
+                means, covs, weights = self.frame_filters[frame_name].bgmm()
+                max_idx = np.argmax(weights)
+                max_weight_mean = means[max_idx]
+                self.ac.go_to(max_weight_mean[0], max_weight_mean[1], 0)
+                precondition_complete = self.run_observation_routine(precondition)
+                if precondition_complete:
+                    self.state.add_action_to_action_history(precondition)
+                chances-=1
+            if not precondition_complete:
+                # out of chances and unable to complete some precondition
+                return False
+        rospy.logwarn("Finished all preconditions!")
+        # finished all preconditions try to do final action
+        chances = 3
+        while chances > 0:
+            rospy.logwarn("Updating filters with {} chance(s) remaining".format(chances))
+            # update filters
+            update_steps = 50
+            for i in range(update_steps):
+                # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
+                if self.record:
+                    # if we are recording a bag publish every time
+                    self.update_filters(publish=True)
+                else:
+                    # if not just publish every 10 updates
+                    self.update_filters(publish=(i%10==0))
+            # go to max
+            means, covs, weights = self.frame_filters[frame_name].bgmm()
+            max_idx = np.argmax(weights)
+            max_weight_mean = means[max_idx]
+            self.ac.go_to(max_weight_mean[0], max_weight_mean[1], 0)
+            task_complete = self.run_observation_routine(frame_name)
+            if task_complete:
+                return True
+            chances-=1
+        return False
 
-        # mean, _ = self.frame_filters['call_elevator'].bgmm()
-        # bmean, _ = self.object_filters['elevator_button'].bgmm()
-        # rospy.loginfo('button mean: {}'.format(bmean))
-        # rospy.loginfo('action mean: {}'.format(mean))
-        # # rospy.loginfo("Going to elevator")
-        # # mean, _ = self.frame_filters['go_elevator'].bgmm()
-        # # nav_goal_x = mean[0]
-        # # nav_goal_y = mean[1]
-        # # nav_goal_t = 3.1415192
-        # # self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
-        # # rospy.loginfo("SFM: Got request to grasp_bottle")
-        # # self.update = False # Stop constant update while executing
-        # # mean, _ = self.frame_filters['grasp_bottle'].bgmm()
-        # # nav_goal_x = mean[0] - 0.7
-        # # nav_goal_y = mean[1] - 0.3
-        # # nav_goal_t = 0.0
-        # # rospy.loginfo("SFM: Navigating to ({:.4f}, {:.4f}, {:.4f})".format(nav_goal_x, nav_goal_y, nav_goal_t))
-        # # self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
-        # # rospy.loginfo("SFM: Raising toros to 0.3")
-        # # self.ac.move_torso(0.3)
-        # # rospy.loginfo("SFM: Pointing head to (-1.5, -0.7, 0.6)")
-        # # self.ac.point_head(-1.5, -0.8, 0.6)
-        # p = Pose()
-        # p.position.x = mean[0]
-        # p.position.y = mean[1]
-        # p.position.z = mean[2]
-        # p.orientation.w = 1
-        # rospy.loginfo("SFM: Send pick command w goal pose: {}".format(p))
-        # self.ac.pick(p)
-        # rospy.loginfo("SFM: Done")
-        # self.update = True
+        
+            
+    
+    def run(self, data):
+        for step in self.experiment_config['steps']:
+            if step == "Update Filters":
+                rospy.loginfo("Updating filters")
+                update_steps = 30
+                for i in range(update_steps):
+                    # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
+                    if self.record:
+                        # if we are recording a bag publish every time
+                        foo.update_filters(publish=True)
+                    else:
+                        # if not just publish every 10 updates
+                        foo.update_filters(publish=(i%10==0))
+                    foo.publish_regions()
+            elif step.startswith('Execute'):
+                frame_name = step.split(' ')[-1]
+                if foo.execute_frame(frame_name):
+                    rospy.logwarn("SFM Driver: Execution Success")
+                else:
+                    rospy.logwarn("SFM Driver: Execution Failure")
+            elif step == "Observe":
+                try:
+                    foo.add_observations(experiment_config['observations'])
+                except KeyError:
+                    foo.add_observations()
+                # for observation in experiment_config['observations']:
+                #     foo.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
+
+                # execute_pub.publish(frame_name)
+        rospy.logwarn("Done!")
 
         
 
@@ -326,36 +433,8 @@ if __name__ == '__main__':
     foo = SFMClient(experiment_config)
     rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(experiment_config['title']))
     execute_pub = rospy.Publisher('execute', String, queue_size=10)
-    record = rospy.get_param("~record")
-    for step in experiment_config['steps']:
-        if step == "Update Filters":
-            rospy.loginfo("Updating filters")
-            update_steps = 50
-            for i in range(update_steps):
-                # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
-                if record:
-                    # if we are recording a bag publish every time
-                    foo.update_filters(publish=True)
-                else:
-                    # if not just publish every 10 updates
-                    foo.update_filters(publish=(i%10==0))
-                foo.publish_regions()
-        elif step.startswith('Execute'):
-            frame_name = step.split(' ')[-1]
-            if foo.execute_frame(frame_name):
-                rospy.logwarn("SFM Driver: Execution Success")
-            else:
-                rospy.logwarn("SFM Driver: Execution Failure")
-        elif step == "Observe":
-            try:
-                foo.add_observations(experiment_config['observations'])
-            except KeyError:
-                foo.add_observations()
-            # for observation in experiment_config['observations']:
-            #     foo.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
-
-            # execute_pub.publish(frame_name)
-    rospy.logwarn("Done!")
+    
+    
     r = rospy.Rate(10)
     while not rospy.is_shutdown():
         foo.publish_regions()
