@@ -41,33 +41,41 @@ regions:
 objects:
   - name: "cup"
     priors:
-      - name: kitchen
-        weight: 0.3
-      - name: dining_room
-        weight: 0.3
       - name: family_room
-        weight: 0.3
+        weight: 0.5
+      - name: bedroom
+        weight: 0.5
+      # - name: dining_room
+      #   weight: 0.3
+      # - name: family_room
+      #   weight: 0.3
   - name: "spoon"
     priors:
       - name: kitchen
-        weight: 0.3
+        weight: 0.5
       - name: bedroom
-        weight: 0.3
-      - name: family_room
-        weight: 0.3
+        weight: 0.5
 observations:
   - name: "spoon"
-    x: -6
-    y: 0.0
+    x: 7.0
+    y: -5.0
     z: 0.0
   - name: "cup"
-    x: 7.0
-    y: -1.0
+    x: -5.0
+    y: -5.0
+    z: 0.0
+  - name: "spoon"
+    x: -6.0
+    y: -0.8
+    z: 0.0
+  - name: "cup"
+    x: -3.5
+    y: -0.8
     z: 0.0
 frames:
   - "grasp_cup"
   - "grasp_spoon"
   - "stir_cup"
 steps:
-  - "Execute stir_cup"
+  - "Execute grasp_cup"
 

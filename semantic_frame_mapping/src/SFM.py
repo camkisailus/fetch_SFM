@@ -179,14 +179,14 @@ class SFMClient():
             for prior in object['priors']:
                 priors[self.regions[prior['name']]] = float(prior['weight'])
             self.object_filters[object['name']] = ObjectParticleFilter(100, valid_regions=priors, label=name)
-        # self.observations = {}
-        # try:
-        #     for observation in experiment_config['observations']:
-        #         self.observations[]
-        #         self.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
-        # except KeyError as e:
-        #     # no observations in the experiment config... that's fine
-        #     pass
+        self.observations = {}
+        try:
+            for observation in experiment_config['observations']:
+                # self.observations[]
+                self.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
+        except KeyError as e:
+            # no observations in the experiment config... that's fine
+            pass
 
         self.state = State()
         self.frame_filters = {}
@@ -286,11 +286,11 @@ class SFMClient():
         region_added = False
         pos_added = []
         rospy.logwarn("Frame is {}".format(frame))
-        # rospy.logwarn("cur robot pose is: ({}, {})".format(cur_pose.position.x, cur_pose.position.y))
+        rospy.logwarn("cur robot pose is: ({}, {})".format(cur_pose.position.x, cur_pose.position.y))
         for _, filter in self.object_filters.items():
             try:
                 for obs in self.experiment_config['observations']:
-                    # rospy.logwarn("{} location is ({}, {})".format(obs['name'], obs['x'], obs['y']))
+                    rospy.logwarn("{} location is ({}, {})".format(obs['name'], obs['x'], obs['y']))
                     # if obs['name'] != filter.label:
                     #     continue
                     x_err =  (obs['x'] - self.state.pose.position.x)**2
@@ -303,6 +303,12 @@ class SFMClient():
                         elif frame == 'stir_cup' and filter.label == 'cup':
                             rospy.logwarn("Successfully completed {}".format(frame))
                             return True
+                        elif frame == 'grasp_cup' and filter.label == 'cup':
+                            rospy.logwarn("Adding observation to {} dist to obj is {}".format(filter.label, np.sqrt(x_err+y_err)))
+                            filter.add_observation_from_config(obs['x'], obs['y'], obs['z'])
+                            pos_added.append(filter.label)
+                            # rospy.logwarn("Successfully completed {}".format(frame))
+                            # return True
                     elif np.sqrt(x_err + y_err) < 5 and obs['name'] == filter.label:
                         rospy.logwarn("Adding observation to {} dist to obj is {}".format(filter.label, np.sqrt(x_err+y_err)))
                         filter.add_observation_from_config(obs['x'], obs['y'], obs['z'])
@@ -323,10 +329,12 @@ class SFMClient():
 
     def execute_frame(self, frame_name):
         rospy.logwarn("Got msg to execute {}".format(frame_name))
+        preconditions = []
         if self.frame_filters[frame_name].preconditions is not None:
             preconditions = self.frame_filters[frame_name].preconditions
         else:
-            preconditons = []
+            preconditions = []
+            cur_action = frame_name
         rospy.logwarn("{} has preconditions: {}".format(frame_name, preconditions))
         for frame in preconditions:
             if frame in self.state.action_history:
@@ -432,25 +440,25 @@ if __name__ == '__main__':
         experiment_config = yaml.safe_load(file)
     foo = SFMClient(experiment_config)
     rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(experiment_config['title']))
-    execute_pub = rospy.Publisher('execute', String, queue_size=10)
+    # execute_pub = rospy.Publisher('execute', String, queue_size=10)
     
     
     r = rospy.Rate(10)
-    while not rospy.is_shutdown():
-        foo.publish_regions()
-        r.sleep()      
-
-    # i = 0
     # while not rospy.is_shutdown():
-    #     print("ITR: {}".format(i+1))
-    #     # if i == 100:
-    #     #     foo.go_to()
-    #     # rospy.loginfo("Updating...")
-    #     foo.update_filters()
     #     foo.publish_regions()
-    #     # print(foo.state.action_history)
-    #     # rospy.loginfo(i)
-    #     # if i == 10:
-    #     #     foo.frame_filters['grasp_bottle'].bgmm()
-    #     i+=1
-    #     r.sleep()
+    #     r.sleep()      
+
+    i = 0
+    while not rospy.is_shutdown():
+        print("ITR: {}".format(i+1))
+        # if i == 100:
+        #     foo.go_to()
+        # rospy.loginfo("Updating...")
+        foo.update_filters()
+        foo.publish_regions()
+        # print(foo.state.action_history)
+        # rospy.loginfo(i)
+        # if i == 10:
+        #     foo.frame_filters['grasp_bottle'].bgmm()
+        i+=1
+        r.sleep()

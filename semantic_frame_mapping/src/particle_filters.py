@@ -98,7 +98,7 @@ class ParticleFilter(object):
             bgm = self.bgm.fit(self.particles)
             return bgm.means_, bgm.covariances_, bgm.weights_
         
-    def reinvigorate(self, particle):
+    def reinvigorate(self, particle, valid_region=False):
         # if self.valid_regions is None:
             # Random resample in entire map
         particle[0] = np.random.uniform(-9, 9)
@@ -224,8 +224,10 @@ class ParticleFilter(object):
     def publish(self):
         marker_array = MarkerArray()
         highest_weight = max(self.weights)
-        lowest_weight = min(self.weights)
-        threshold = lowest_weight + float((highest_weight-lowest_weight)*0.8)
+        # rospy.logwarn("{}: {}".format(self.label, sum(self.weights)))
+        # assert(sum(self.weights) == 1.0)
+        # lowest_weight = min(self.weights)
+        # threshold = lowest_weight + float((highest_weight-lowest_weight)*0.8)
         for i in range(self.n):
             marker = Marker()
             marker.id = i
@@ -273,11 +275,15 @@ class ParticleFilter(object):
             marker.scale.x = 0.2
             marker.scale.y = 0.2
             marker.scale.z = 0.2
-            marker.color.a = 0.7
-            # if self.weights[i] < threshold:
-            #     marker.color.a = self.weights[i]/threshold
-            # else:
-            #     marker.color.a = 1.0
+            # marker.color.a = 0.7
+            # if self.weights[i] <= float(highest_weight/4):
+            #     marker.color.a = 0.25
+            if self.weights[i] <= float(highest_weight/2):
+                marker.color.a = 0.25
+            elif self.weights[i] <= float(3*highest_weight/4):
+                marker.color.a = 0.75
+            else:
+                marker.color.a = 1.0
             marker.pose.orientation.w = 1.0
             marker.pose.position.x = self.particles[i, 0]
             marker.pose.position.y = self.particles[i, 1]
@@ -384,18 +390,19 @@ class ObjectParticleFilter(ParticleFilter):
             # x % of particles evenly between observations
             temp_p = self.particles[:]
             temp_w = self.weights[:]
-            indexes = self.systematic_resample()
-            count = 0
-            while count < int(self.n*0.8):
-                self.particles[count] = temp_p[indexes[count]]
-                # rospy.logwarn(temp_w[index])
-                self.weights[count] = temp_w[indexes[count]]
-                count+=1
-            for i in range(count, self.n):
-                obs = self.observations[i%len(self.observations)]
-                self.particles[i,0] = obs.x
-                self.particles[i,1] = obs.y
-                self.particles[i,2] = obs.z
+            # indexes = self.systematic_resample()
+            # count = 0
+            for i in range(int(self.n*0.4)):
+                if self.weights[i] >= float(1.0/self.n):
+                    continue
+                self.particles[i] = self.reinvigorate(copy.deepcopy(temp_p[i]))
+                # self.weights[i] = float(1/self.n)
+
+            for j in range(i, self.n):
+                obs = self.observations[j%len(self.observations)]
+                self.particles[j,0] = obs.x
+                self.particles[j,1] = obs.y
+                self.particles[j,2] = obs.z
             assert(self.particles.shape[0] == self.n)
                 
             # r = int(self.n * 0.2)
@@ -415,6 +422,7 @@ class ObjectParticleFilter(ParticleFilter):
 
     def update_filter(self):
         count = 0
+        self.resample()
         for k in range(self.n):
             self.particles[k, :]= self.jitter(self.particles[k, :])
             weight = self.assign_weight(self.particles[k, :])
@@ -423,7 +431,6 @@ class ObjectParticleFilter(ParticleFilter):
             self.weights[k] = weight
         # rospy.logwarn("{} had {} particles w 0 weight".format(self.label, count))
         self.weights = self.weights / np.sum(self.weights)
-        self.resample()
            
 class FrameParticleFilter(ParticleFilter):
     def __init__(self, n, label, preconditions, core_frame_elements, valid_regions):
@@ -485,8 +492,10 @@ class FrameParticleFilter(ParticleFilter):
             marker.scale.x = eigValues[0]*2
             marker.scale.y = eigValues[1]*2
             marker.scale.z = eigValues[2]*2
-            if np.sqrt(marker.scale.x**2 + marker.scale.y**2 + marker.scale.z**2) > 20:
+            foo = np.sqrt(marker.scale.x**2 + marker.scale.y**2 + marker.scale.z**2)
+            if  foo > 20:
                 break
+            # rospy.logwarn("{} gauss # {} scale is: {}".format(self.label, count, foo))
 
             # marker.color.a = 0.5
             if count > 1:
@@ -605,9 +614,9 @@ class FrameParticleFilter(ParticleFilter):
     
     def update_filter(self, state):
         with self.lock:
+            self.resample()
             for k in range(self.n):
                 self.particles[k, :] = self.jitter(self.particles[k,:])
                 self.weights[k] = self.assign_weight(self.particles[k,:], state)
             self.weights = self.weights / np.sum(self.weights)
-            self.resample()
             
