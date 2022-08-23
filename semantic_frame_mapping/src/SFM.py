@@ -1,5 +1,4 @@
 #! /usr/bin/python3
-
 import rospy
 
 from particle_filters import *
@@ -8,7 +7,7 @@ from std_msgs.msg import Bool
 from geometry_msgs.msg import Point, PoseWithCovarianceStamped, Pose
 from std_msgs.msg import String
 from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal
-
+from semantic_frame_mapping.msg import ObjectDetection
 # room number: min_x, max_x, min_y, max_y, min_z, max_z
 # REGIONS = {
 #     'table1': (0, 1, 0, 1, 0, 1),
@@ -51,14 +50,32 @@ REGIONS = {
 #     'elevator': (-7, -8, 18, 19, 0, 3)
 # }
 class State():
-    def __init__(self, action_history):
+    def __init__(self, action_history, observations):
         self.action_history = action_history
+        self.observations = observations
+        self.obs_pub = rospy.Publisher("scene/observations", ObjectDetection, queue_size=10)
         self.ah_sub = rospy.Subscriber("/add_action_to_action_history", String, self.add_action_to_action_history)
         self.robot_pose_sub = rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.update_pose)
         self.pose = Pose()
     
     def update_pose(self, pose_msg):
         self.pose = pose_msg.pose.pose
+        try:
+            for i,obj in enumerate(self.observations):
+                x_err = (self.pose.position.x - obj['x'])**2
+                y_err = (self.pose.position.y - obj['y'])**2
+                if np.sqrt(x_err + y_err) <= 5.0:
+                    det = ObjectDetection()
+                    det.type = obj['name']
+                    det.label = obj['label']
+                    det.pose.position.x = obj['x']
+                    det.pose.position.y = obj['y']
+                    det.pose.position.z = obj['z']
+                    self.obs_pub.publish(det)
+                    self.observations.pop(i)
+        except:
+            rospy.logwarn_once("No observations in this experiment")
+            pass
     
     def add_action_to_action_history(self, action_taken):
         try:
@@ -180,15 +197,15 @@ class SFMClient():
                 priors[self.regions[prior['name']]] = float(prior['weight'])
             self.object_filters[object['name']] = ObjectParticleFilter(100, valid_regions=priors, label=name)
         self.observations = {}
-        try:
-            for observation in experiment_config['observations']:
-                # self.observations[]
-                self.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
-        except:
-            # no observations in the experiment config... that's fine
-            pass
+        # try:
+        #     for observation in experiment_config['observations']:
+        #         # self.observations[]
+        #         self.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
+        # except:
+        #     # no observations in the experiment config... that's fine
+        #     pass
 
-        self.state = State(experiment_config['action_history'])
+        self.state = State(experiment_config['action_history'], experiment_config['observations'])
         self.frame_filters = {}
 
         self.kb = init_knowledge_base(rospy.get_param('~sf_dir'), experiment_config['frames'])

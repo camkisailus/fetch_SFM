@@ -27,7 +27,6 @@ from apriltag_ros.msg import AprilTagDetectionArray
 class StaticObject(object):
     def __init__(self, label, x, y, z):
         self.label = label
-        self.full_name = label
         self.x = x
         self.y = y
         self.z = z
@@ -349,9 +348,14 @@ class ObjectParticleFilter(ParticleFilter):
             
     def add_observation_from_config(self, x, y, z):
         self.observations.append(StaticObject(self.label, x, y, z))
+    
+    def add_observation_from_scene(self, obj_label, x, y, z):
+        if obj_label == self.label:
+            rospy.logwarn("{}_pf: Received observation at ({}, {}, {})".format(self.label, x, y, z))
+            self.observations.append(StaticObject(obj_label, x, y, z))
 
     def add_observation(self, observation):
-        if observation.label == self.label:
+        if observation.type == self.label:
             rospy.loginfo("{}_pf: Received observation at ({}, {}, {})".format(self.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z))
             obj = StaticObject(observation.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z)
             self.observations.append(obj)

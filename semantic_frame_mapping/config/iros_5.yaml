@@ -52,29 +52,25 @@ objects:
       - name: bedroom
         weight: 0.5
 observations:
-  # - name: "spoon"
-  #   x: 7.0
-  #   y: -5.0
-  #   z: 0.0
-  # - name: "cup"
-  #   x: -5.0
-  #   y: -5.0
-  #   z: 0.0
   - name: "spoon"
+    label: "spoon_0"
     x: 2.0
     y: -2.0
     z: 0.0
   - name: "cup"
+    label: "cup_0"
     x: 3.0
     y: -2.0
     z: 0.0
   - name: "spoon"
-    x: 0.0
+    label: "spoon_1"
+    x: 4.0
     y: 0.0
     z: 0.0
   - name: "cup"
-    x: 1.0
-    y: 1.0
+    label: "cup_1"
+    x: 0.0
+    y: 4.0
     z: 0.0
 frames:
   - "grasp_cup"
