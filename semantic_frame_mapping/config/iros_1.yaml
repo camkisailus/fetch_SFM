@@ -1,7 +1,7 @@
 # Experiment Setup
 
-title: "Experiment_2"
-description: "Foo Bar"
+title: "iros_1"
+description: "Priors only. "
 regions:
   - name: "dining_room"
     min_x: 4.5
@@ -45,10 +45,6 @@ objects:
         weight: 0.5
       - name: bedroom
         weight: 0.5
-      # - name: dining_room
-      #   weight: 0.3
-      # - name: family_room
-      #   weight: 0.3
   - name: "spoon"
     priors:
       - name: kitchen
@@ -56,26 +52,10 @@ objects:
       - name: bedroom
         weight: 0.5
 observations:
-  # - name: "spoon"
-  #   x: 7.0
-  #   y: -5.0
-  #   z: 0.0
-  # - name: "cup"
-  #   x: -5.0
-  #   y: -5.0
-  #   z: 0.0
-  # - name: "spoon"
-  #   x: -6.0
-  #   y: -0.8
-  #   z: 0.0
-  # - name: "cup"
-  #   x: -3.5
-  #   y: -0.8
-  #   z: 0.0
 frames:
   - "grasp_cup"
   - "grasp_spoon"
   - "stir_cup"
-steps:
-  - "Execute grasp_cup"
+action_history:
+  - "idle"
 

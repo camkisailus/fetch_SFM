@@ -51,8 +51,8 @@ REGIONS = {
 #     'elevator': (-7, -8, 18, 19, 0, 3)
 # }
 class State():
-    def __init__(self):
-        self.action_history = ['idle']
+    def __init__(self, action_history):
+        self.action_history = action_history
         self.ah_sub = rospy.Subscriber("/add_action_to_action_history", String, self.add_action_to_action_history)
         self.robot_pose_sub = rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.update_pose)
         self.pose = Pose()
@@ -184,11 +184,11 @@ class SFMClient():
             for observation in experiment_config['observations']:
                 # self.observations[]
                 self.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
-        except KeyError as e:
+        except:
             # no observations in the experiment config... that's fine
             pass
 
-        self.state = State()
+        self.state = State(experiment_config['action_history'])
         self.frame_filters = {}
 
         self.kb = init_knowledge_base(rospy.get_param('~sf_dir'), experiment_config['frames'])

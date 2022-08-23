@@ -224,6 +224,10 @@ class ParticleFilter(object):
     def publish(self):
         marker_array = MarkerArray()
         highest_weight = max(self.weights)
+        max_weight = max(self.weights)
+        min_weight = min(self.weights)
+        # if self.label == 'grasp_cup' or self.label == 'grasp_spoon' or self.label == 'stir_cup':
+        #     rospy.logwarn("{}: max: {:.6f}, min: {:.6f}".format(self.label, max(self.weights), min(self.weights)))
         # rospy.logwarn("{}: {}".format(self.label, sum(self.weights)))
         # assert(sum(self.weights) == 1.0)
         # lowest_weight = min(self.weights)
@@ -275,15 +279,20 @@ class ParticleFilter(object):
             marker.scale.x = 0.2
             marker.scale.y = 0.2
             marker.scale.z = 0.2
+            a = min(round((self.weights[i] - min_weight) / (max_weight - min_weight), 2) + 0.45, 1.0)
+            if a < 0.6:
+                marker.color.a = 0
+            else:
+                marker.color.a = a
             # marker.color.a = 0.7
             # if self.weights[i] <= float(highest_weight/4):
             #     marker.color.a = 0.25
-            if self.weights[i] <= float(highest_weight/2):
-                marker.color.a = 0.25
-            elif self.weights[i] <= float(3*highest_weight/4):
-                marker.color.a = 0.75
-            else:
-                marker.color.a = 1.0
+            # if self.weights[i] <= float(highest_weight/2):
+            #     marker.color.a = 0.25
+            # elif self.weights[i] <= float(3*highest_weight/4):
+            #     marker.color.a = 0.75
+            # else:
+            #     marker.color.a = 1.0
             marker.pose.orientation.w = 1.0
             marker.pose.position.x = self.particles[i, 0]
             marker.pose.position.y = self.particles[i, 1]
@@ -578,7 +587,7 @@ class FrameParticleFilter(ParticleFilter):
                 for j in range(subtask_filter.n):
                     other_particle = subtask_filter.particles[j, :]
                     dist = np.sqrt((other_particle[0]-particle[0])**2 + (other_particle[1]-particle[1])**2 + (other_particle[2]-particle[2])**2)
-                    phi = math.exp(-1*dist)
+                    phi = math.exp(-5*dist)
                     potential += (phi*subtask_filter.weights[j])
                 i+=1
             return potential
@@ -601,7 +610,7 @@ class FrameParticleFilter(ParticleFilter):
             for j in range(core_element_filter.n):
                 other_particle = core_element_filter.particles[j, :]
                 dist = np.sqrt((other_particle[0]-particle[0])**2 + (other_particle[1]-particle[1])**2 + (other_particle[2]-particle[2])**2)
-                phi = math.exp(-1*dist)
+                phi = math.exp(-5*dist)
                 potential += (1/math.pow(core_elem_weight_mod,2))*(phi*core_element_filter.weights[j])
             i+=1
             core_elem_weight_mod+=1
