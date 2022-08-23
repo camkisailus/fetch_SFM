@@ -39,21 +39,17 @@
         args="record -o /home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/$(arg experiment_title)
             /tf
             /map
-            /filter/particles/grasp_bowl
-            /filter/particles/grasp_cup
-            /filter/particles/grasp_spoon
-            /filter/particles/stir_bowl
-            /filter/particles/pour_bowl
-            /filter/particles/stir_cup
-            /filter/gauss/grasp_bowl
             /filter/gauss/grasp_cup
             /filter/gauss/grasp_spoon
-            /filter/gauss/stir_bowl
-            /filter/gauss/pour_bowl
             /filter/gauss/stir_cup
+            /filter/particles/cup
+            /filter/particles/grasp_cup
+            /filter/particles/grasp_spoon
+            /filter/particles/spoon
+            /filter/particles/stir_cup
             /filter/static_object/cup
             /filter/static_object/spoon
-            /filter/static_object/bowl"
+            "
         output="log"
     />
 

@@ -450,15 +450,16 @@ if __name__ == '__main__':
 
     i = 0
     while not rospy.is_shutdown():
-        print("ITR: {}".format(i+1))
-        # if i == 100:
-        #     foo.go_to()
-        # rospy.loginfo("Updating...")
+        # if i < 20:
+        #     print("ITR: {}".format(i+1))
+        #     # if i == 100:
+        #     #     foo.go_to()
+        #     # rospy.loginfo("Updating...")
         foo.update_filters()
-        foo.publish_regions()
-        # print(foo.state.action_history)
-        # rospy.loginfo(i)
-        # if i == 10:
-        #     foo.frame_filters['grasp_bottle'].bgmm()
-        i+=1
+        #     foo.publish_regions()
+        #     # print(foo.state.action_history)
+        #     # rospy.loginfo(i)
+        #     # if i == 10:
+        #     #     foo.frame_filters['grasp_bottle'].bgmm()
+        #     i+=1
         r.sleep()
