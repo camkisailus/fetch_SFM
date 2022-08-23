@@ -193,10 +193,15 @@ class SFMClient():
         for object in experiment_config['objects']:
             name = object['name']
             priors = {}
-            for prior in object['priors']:
-                priors[self.regions[prior['name']]] = float(prior['weight'])
+            try:
+                for prior in object['priors']:
+                    priors[self.regions[prior['name']]] = float(prior['weight'])
+            except:
+                pass
             self.object_filters[object['name']] = ObjectParticleFilter(100, valid_regions=priors, label=name)
         self.observations = {}
+
+        self.prompt_sub = rospy.Subscriber("/escape_room/input", String, self.handle_user_input)
         # try:
         #     for observation in experiment_config['observations']:
         #         # self.observations[]
@@ -205,40 +210,49 @@ class SFMClient():
         #     # no observations in the experiment config... that's fine
         #     pass
 
-        self.state = State(experiment_config['action_history'], experiment_config['observations'])
-        self.frame_filters = {}
+        # self.state = State(experiment_config['action_history'], experiment_config['observations'])
+        # self.frame_filters = {}
 
-        self.kb = init_knowledge_base(rospy.get_param('~sf_dir'), experiment_config['frames'])
-        self.execute_frame_sub = rospy.Subscriber("/execute", String, self.execute_frame)
-        self.ac = ActionClient()
-        for i, frame in enumerate(self.kb):
-            valid_regions = None
-            filter = FrameParticleFilter(200, frame.name, frame.preconditions, frame.core_frame_elements, valid_regions)
-            for cfe in frame.core_frame_elements:
-                filter.add_frame_element(self.object_filters[cfe], cfe)
-            self.frame_filters[frame.name] = filter
-            rospy.loginfo("{} filter initialized".format(frame.name))
-        for frame in self.kb:
-            for precondition in frame.preconditions:
-                print("Adding {} for {}".format(precondition, frame.name))
-                self.frame_filters[frame.name].add_precondition(self.frame_filters[precondition], precondition)
-        for _, filter in self.frame_filters.items():
-            print(filter.label)
-            i = 0
-            try:
-                for _, weight in filter.valid_regions.items():
-                    print("\tregion {} weight: {}".format(i, weight))
-            except:
-                print("No valid regions for : {}".format(filter.label))
-                pass
-            for name, fe_filter in filter.frame_element_filters.items():
-                print("\tcfe: {}, filter: {}".format(name, fe_filter.label))
-            try:
-                for name, p_filter in filter.precondition_filters.items():
-                    print("\tpcond: {}, filter: {}".format(name, p_filter.label))
-            except AttributeError:
-                print("No preconditions!")
+        # self.kb = init_knowledge_base(rospy.get_param('~sf_dir'), experiment_config['frames'])
+        # self.execute_frame_sub = rospy.Subscriber("/execute", String, self.execute_frame)
+        # self.ac = ActionClient()
+        # for i, frame in enumerate(self.kb):
+        #     valid_regions = None
+        #     filter = FrameParticleFilter(200, frame.name, frame.preconditions, frame.core_frame_elements, valid_regions)
+        #     for cfe in frame.core_frame_elements:
+        #         filter.add_frame_element(self.object_filters[cfe], cfe)
+        #     self.frame_filters[frame.name] = filter
+        #     rospy.loginfo("{} filter initialized".format(frame.name))
+        # for frame in self.kb:
+        #     for precondition in frame.preconditions:
+        #         print("Adding {} for {}".format(precondition, frame.name))
+        #         self.frame_filters[frame.name].add_precondition(self.frame_filters[precondition], precondition)
+        # for _, filter in self.frame_filters.items():
+        #     print(filter.label)
+        #     i = 0
+        #     try:
+        #         for _, weight in filter.valid_regions.items():
+        #             print("\tregion {} weight: {}".format(i, weight))
+        #     except:
+        #         print("No valid regions for : {}".format(filter.label))
+        #         pass
+        #     for name, fe_filter in filter.frame_element_filters.items():
+        #         print("\tcfe: {}, filter: {}".format(name, fe_filter.label))
+        #     try:
+        #         for name, p_filter in filter.precondition_filters.items():
+        #             print("\tpcond: {}, filter: {}".format(name, p_filter.label))
+        #     except AttributeError:
+        #         print("No preconditions!")
         
+    def handle_user_input(self, response):
+        if response.data == 'finesse':
+            rospy.logwarn("ADDING VALID REGION")
+            self.object_filters['token'].add_valid_region(self.regions['kitchen'], 1.0)
+        elif response.data == 'dat way':
+            rospy.logwarn("ADDING OBSERVATION")
+            self.object_filters['token'].add_observation_from_scene('token', 7.5, -4.0, 0)
+
+
 
     def publish_regions(self):
         for region in self.regions.values():
@@ -254,11 +268,11 @@ class SFMClient():
             # rospy.logwarn(filter.label)
             if publish:
                 filter.publish()
-        for _, filter in self.frame_filters.items():
-            filter.update_filter(self.state)
-            # rospy.logwarn(filter.label)
-            if publish:
-                filter.publish()
+        # for _, filter in self.frame_filters.items():
+        #     filter.update_filter(self.state)
+        #     # rospy.logwarn(filter.label)
+        #     if publish:
+        #         filter.publish()
     
     def add_observations(self, possible_observations=[]):
         # add observations if they are within 5m of the robot's current pose

@@ -222,9 +222,10 @@ class ParticleFilter(object):
     
     def publish(self):
         marker_array = MarkerArray()
-        highest_weight = max(self.weights)
+        # highest_weight = max(self.weights)
         max_weight = max(self.weights)
         min_weight = min(self.weights)
+        # rospy.logwarn(sum(self.weights))
         # if self.label == 'grasp_cup' or self.label == 'grasp_spoon' or self.label == 'stir_cup':
         #     rospy.logwarn("{}: max: {:.6f}, min: {:.6f}".format(self.label, max(self.weights), min(self.weights)))
         # rospy.logwarn("{}: {}".format(self.label, sum(self.weights)))
@@ -271,6 +272,10 @@ class ParticleFilter(object):
                 marker.color.b = 1
                 marker.color.r = 1
                 marker.type = marker.SPHERE
+            elif self.label == 'token':
+                marker.color.r = 1
+                marker.color.g = 1
+                marker.type = marker.SPHERE
                     
             
             marker.action = marker.ADD
@@ -278,11 +283,12 @@ class ParticleFilter(object):
             marker.scale.x = 0.2
             marker.scale.y = 0.2
             marker.scale.z = 0.2
-            a = min(round((self.weights[i] - min_weight) / (max_weight - min_weight), 2) + 0.45, 1.0)
-            if a < 0.6:
-                marker.color.a = 0
-            else:
-                marker.color.a = a
+            marker.color.a = 1
+            # a = min(round((self.weights[i] - min_weight) / (max_weight - min_weight), 2) + 0.45, 1.0)
+            # if a < 0.6:
+            #     marker.color.a = 0
+            # else:
+            #     marker.color.a = a
             # marker.color.a = 0.7
             # if self.weights[i] <= float(highest_weight/4):
             #     marker.color.a = 0.25
@@ -332,6 +338,9 @@ class ObjectParticleFilter(ParticleFilter):
         for observation in self.observations:
             observation.publish()
 
+    def add_valid_region(self, region, weight):
+        # rospy.logwarn("Adding {} to valid regions ".format(region.name))
+        self.valid_regions[region] = weight
     
     def handle_ar_detection(self, msg):
         for detection in msg.detections:
@@ -362,10 +371,14 @@ class ObjectParticleFilter(ParticleFilter):
     
     
     def assign_weight(self, particle):
-        for region in self.negative_regions:
-            min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
-            if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
-                return 0
+        # for region in self.negative_regions:
+        #     min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
+        #     if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
+        #         return 0
+        if len(list(self.valid_regions.keys())) == 0:
+            # rospy.logwarn_throttle(1, "no valid_regions for {}".format(self.label))
+            return 1
+        
         region_weight = 1e-3
         for region, weight in self.valid_regions.items():
             min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
