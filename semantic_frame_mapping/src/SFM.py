@@ -200,8 +200,8 @@ class SFMClient():
                 pass
             self.object_filters[object['name']] = ObjectParticleFilter(100, valid_regions=priors, label=name)
         self.observations = {}
-
-        self.prompt_sub = rospy.Subscriber("/escape_room/input", String, self.handle_user_input)
+        self.clues_found = []
+        self.prompt_sub = rospy.Subscriber("/tag_detections", AprilTagDetectionArray, self.handle_user_input)
         # try:
         #     for observation in experiment_config['observations']:
         #         # self.observations[]
@@ -244,13 +244,31 @@ class SFMClient():
         #     except AttributeError:
         #         print("No preconditions!")
         
-    def handle_user_input(self, response):
-        if response.data == 'finesse':
-            rospy.logwarn("ADDING VALID REGION")
-            self.object_filters['token'].add_valid_region(self.regions['kitchen'], 1.0)
-        elif response.data == 'dat way':
-            rospy.logwarn("ADDING OBSERVATION")
-            self.object_filters['token'].add_observation_from_scene('token', 7.5, -4.0, 0)
+    def handle_user_input(self, msg):
+        for detection in msg.detections:
+            if detection.id not in self.clues_found:
+                rospy.logwarn("Found a new clue!!!")
+                self.clues_found.append(detection.id)
+                if len(self.clues_found)==1:
+                    pass
+                elif len(self.clues_found) == 2:
+                    self.object_filters['token'].add_valid_region(self.regions['r1'], 0.5)
+                    self.object_filters['token'].add_valid_region(self.regions['r2'], 0.5)
+                elif len(self.clues_found) == 3:
+                    self.object_filters['token'].remove_valid_region(self.regions['r1'])
+                else:
+                    self.object_filters['token'].add_observation_from_scene('token', 1, 1, 1)
+        # first is uniform across map
+        # second is 2 room level priors
+        # third is 1 room level prior
+        # fourth is GT observation
+
+        # if response.data == 'finesse':
+        #     rospy.logwarn("ADDING VALID REGION")
+        #     self.object_filters['token'].add_valid_region(self.regions['kitchen'], 1.0)
+        # elif response.data == 'dat way':
+        #     rospy.logwarn("ADDING OBSERVATION")
+        #     self.object_filters['token'].add_observation_from_scene('token', 7.5, -4.0, 0)
 
 
 
@@ -263,11 +281,12 @@ class SFMClient():
 
     def update_filters(self, publish=True):
         # if self.update:
-        for _, filter in self.object_filters.items():
-            filter.update_filter()
-            # rospy.logwarn(filter.label)
-            if publish:
-                filter.publish()
+        if len(self.clues_found) > 0:
+            for _, filter in self.object_filters.items():
+                filter.update_filter()
+                # rospy.logwarn(filter.label)
+                if publish:
+                    filter.publish()
         # for _, filter in self.frame_filters.items():
         #     filter.update_filter(self.state)
         #     # rospy.logwarn(filter.label)

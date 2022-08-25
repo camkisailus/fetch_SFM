@@ -342,7 +342,11 @@ class ObjectParticleFilter(ParticleFilter):
         # rospy.logwarn("Adding {} to valid regions ".format(region.name))
         self.valid_regions[region] = weight
     
+    def remove_valid_region(self, region):
+        del self.valid_regions[region]
+    
     def handle_ar_detection(self, msg):
+        return
         for detection in msg.detections:
             obj_label = self.ar_to_obj_map[detection.id[0]]
             if obj_label == self.label:
