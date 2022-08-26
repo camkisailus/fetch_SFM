@@ -100,11 +100,11 @@ class ParticleFilter(object):
     def reinvigorate(self, particle, valid_region=False):
         # if self.valid_regions is None:
             # Random resample in entire map
-        particle[0] = np.random.uniform(-9, 9)
+        particle[0] = np.random.uniform(-3, 11.5)
         # -9 + np.random.random()*10
-        particle[1] = np.random.uniform(-6, 6)
+        particle[1] = np.random.uniform(-3, 10)
         # -5 + np.random.random()*6
-        particle[2] = 0# np.random.uniform(0, 3)
+        particle[2] = np.random.uniform(0, 2)# np.random.uniform(0, 3)
         # np.random.random()*2
         # else:
         #     # Random resample in a valid region
@@ -406,6 +406,34 @@ class ObjectParticleFilter(ParticleFilter):
         return max_phi + region_weight
     
     def resample(self):
+        if len(self.valid_regions.keys()) > 0:
+            valid_regions = list(self.valid_regions.keys())
+            for i in range(int(self.n*0.8)):
+                region = valid_regions[i%len(valid_regions)]
+                min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
+                self.particles[i,0] = min_x + np.random.random()*(max_x - min_x)
+                self.particles[i,1] = min_y + np.random.random()*(max_y - min_y)
+                self.particles[i,2] = min_z + np.random.random()*(max_z - min_z)
+            for j in range(i, self.n):
+                self.particles[j] = self.reinvigorate(self.particles[j])
+
+        elif len(self.observations) != 0:
+            obs = self.observations[0]
+            for i in range(int(self.n*0.7)):
+                self.particles[i, 0] = obs.x
+                self.particles[i, 1] = obs.y
+                self.particles[i, 2] = obs.z 
+            for j in range(i, self.n):
+                self.particles[j] = self.reinvigorate(self.particles[j])
+
+
+        else:
+            for i in range(self.n):
+                self.particles[i] = self.reinvigorate(self.particles[i])
+        return
+
+
+                
         if len(self.observations) == 0:
             temp_p = self.particles[:]
             temp_w = self.weights[:]
@@ -455,12 +483,12 @@ class ObjectParticleFilter(ParticleFilter):
         self.resample()
         for k in range(self.n):
             self.particles[k, :]= self.jitter(self.particles[k, :])
-            weight = self.assign_weight(self.particles[k, :])
-            if weight == 0:
-                count+=1
-            self.weights[k] = weight
+            # weight = self.assign_weight(self.particles[k, :])
+            # if weight == 0:
+            #     count+=1
+            # self.weights[k] = weight
         # rospy.logwarn("{} had {} particles w 0 weight".format(self.label, count))
-        self.weights = self.weights / np.sum(self.weights)
+        # self.weights = self.weights / np.sum(self.weights)
            
 class FrameParticleFilter(ParticleFilter):
     def __init__(self, n, label, preconditions, core_frame_elements, valid_regions):

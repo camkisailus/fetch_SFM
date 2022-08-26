@@ -202,6 +202,7 @@ class SFMClient():
         self.observations = {}
         self.clues_found = []
         self.prompt_sub = rospy.Subscriber("/tag_detections", AprilTagDetectionArray, self.handle_user_input)
+        self.show_particles = False
         # try:
         #     for observation in experiment_config['observations']:
         #         # self.observations[]
@@ -250,6 +251,7 @@ class SFMClient():
                 rospy.logwarn("Found a new clue!!!")
                 self.clues_found.append(detection.id)
                 if len(self.clues_found)==1:
+                    self.show_particles = True
                     pass
                 elif len(self.clues_found) == 2:
                     self.object_filters['token'].add_valid_region(self.regions['r1'], 0.5)
@@ -257,6 +259,7 @@ class SFMClient():
                 elif len(self.clues_found) == 3:
                     self.object_filters['token'].remove_valid_region(self.regions['r1'])
                 else:
+                    self.object_filters['token'].remove_valid_region(self.regions['r2'])
                     self.object_filters['token'].add_observation_from_scene('token', 1, 1, 1)
         # first is uniform across map
         # second is 2 room level priors
@@ -285,7 +288,7 @@ class SFMClient():
             for _, filter in self.object_filters.items():
                 filter.update_filter()
                 # rospy.logwarn(filter.label)
-                if publish:
+                if self.show_particles:
                     filter.publish()
         # for _, filter in self.frame_filters.items():
         #     filter.update_filter(self.state)
@@ -506,7 +509,7 @@ if __name__ == '__main__':
         #     #     foo.go_to()
         #     # rospy.loginfo("Updating...")
         foo.update_filters()
-        #     foo.publish_regions()
+        foo.publish_regions()
         #     # print(foo.state.action_history)
         #     # rospy.loginfo(i)
         #     # if i == 10:

@@ -3,41 +3,20 @@
 title: "escape_room"
 description: "Priors only. "
 regions:
-  - name: "dining_room"
-    min_x: 4.5
-    max_x: 8.5
-    min_y: -1.0
-    max_y: 1.5
+  - name: "r1"
+    min_x: -3
+    max_x: 2
+    min_y: -3.2
+    max_y: 1
     min_z: 0
-    max_z: 1.5
-  - name: "kitchen"
-    min_x: 6.5
-    max_x: 9.0
-    min_y: -5.7
-    max_y: -2.0
-    min_z: 0.0
-    max_z: 1.5
-  - name: "bedroom"
-    min_x: -8.0
-    max_x: -3.5
-    min_y: -1.7
-    max_y: 0.0
-    min_z: 0.0
-    max_z: 1.5
-  - name: "living_room"
-    min_x: -2.0
-    max_x: 2.0
-    min_y: -4.5
-    max_y: -1.5
-    min_z: 0.0
-    max_z: 1.5
-  - name: "family_room"
-    min_x: -8.0
-    max_x: -3.5
-    min_y: -6.0
-    max_y: -3.5
-    min_z: 0.0
-    max_z: 1.5
+    max_z: 1
+  - name: "r2"
+    min_x: 9.5
+    max_x: 11.5
+    min_y: 4
+    max_y: 8.5
+    min_z: 0
+    max_z: 1
 objects:
   - name: "token"
     priors:
