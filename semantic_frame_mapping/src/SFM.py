@@ -252,7 +252,7 @@ class SFMClient():
                 self.clues_found.append(detection.id)
                 if len(self.clues_found)==1:
                     self.show_particles = True
-                    pass
+                    # self.object_filters['token'].add_observation_from_scene('token', 10, 6, 1)
                 elif len(self.clues_found) == 2:
                     self.object_filters['token'].add_valid_region(self.regions['r1'], 0.5)
                     self.object_filters['token'].add_valid_region(self.regions['r2'], 0.5)
@@ -260,7 +260,7 @@ class SFMClient():
                     self.object_filters['token'].remove_valid_region(self.regions['r1'])
                 else:
                     self.object_filters['token'].remove_valid_region(self.regions['r2'])
-                    self.object_filters['token'].add_observation_from_scene('token', 1, 1, 1)
+                    self.object_filters['token'].add_observation_from_scene('token', 10, 6, 1)
         # first is uniform across map
         # second is 2 room level priors
         # third is 1 room level prior
