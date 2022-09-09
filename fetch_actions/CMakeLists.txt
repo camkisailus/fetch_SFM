@@ -82,6 +82,7 @@ add_action_files(
 generate_messages(
   DEPENDENCIES
   actionlib_msgs
+  geometry_msgs
   #control_msgs#   geometry_msgs#   grasping_msgs#   move_base_msgs#   moveit_msgs#   trajectory_msgs
 )
 
