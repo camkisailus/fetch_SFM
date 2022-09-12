@@ -442,7 +442,7 @@ class ObjectParticleFilter(ParticleFilter):
         self.weights = self.weights / np.sum(self.weights)
            
 class FrameParticleFilter(ParticleFilter):
-    def __init__(self, n, label, preconditions, core_frame_elements, valid_regions):
+    def __init__(self, n, label, preconditions, core_frame_elements, valid_regions=None):
         super(FrameParticleFilter, self).__init__(n, label, valid_regions)
         
         self.marker_pub = rospy.Publisher('filter/particles/{}'.format(label), MarkerArray, queue_size=10)

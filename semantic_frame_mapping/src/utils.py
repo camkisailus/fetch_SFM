@@ -31,19 +31,4 @@ def init_knowledge_base(path, frames):
                 knowledge_base.append(Frame(info_dict))
             except yaml.YAMLError as e:
                 print(e)
-    return knowledge_base
-
-    # frames_path = glob.glob(path+"*")
-    # 
-    # for frame in frames_path:
-    #     # if frame.endswith("grasp_bottle_sf.yaml"):
-    #     #     continue
-    #     if frame.endswith("stir_mug_sf.yaml"):
-    #         continue
-    #     if frame.endswith("drinkserve_sf.yaml"):
-    #         continue
-    #     print("Loading: ", frame.split('/')[-1])
-    #     with open(frame, 'r') as fstream:
-            
-    
-
+    return knowledge_base 
