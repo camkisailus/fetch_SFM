@@ -9,47 +9,6 @@ from geometry_msgs.msg import Point, PoseWithCovarianceStamped, Pose
 from std_msgs.msg import String
 from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal
 
-# room number: min_x, max_x, min_y, max_y, min_z, max_z
-# REGIONS = {
-#     'table1': (0, 1, 0, 1, 0, 1),
-#     'table2': (5, 6, 5, 6, 5, 6),
-# }
-# REGIONS = {
-#     'table1': (-2, -3, -5, -4, 0.5, 1.5),
-#     'table2': (5, 6, 5, 6, 5, 6),
-# }
-## LAB 06-21-22
-# REGIONS = {
-#     'table1': (-2.2, -1.2, -1.25, -0.5, 0.0, 1.5),#(-2.2, -1.2, -1.25, -0.5, 0.6, 0.8),
-#     'table2': (-5.75, -4.75, -2.25, -1.5, 0.0, 1.5),#(-5.75, -4.75, -2.25, -1.5, 0.6, 0.8),
-#     'neg1': (-5.75, -4.75, -2.25, -1.5, 0, 1.5),
-#     'elevator': (-1.2, -1.2, -18.5, -18.5, 0.0, 1.5),#(-1.2, -1.2, -18.5, -18.5, 1, 1),
-#     # AWS HOUSE STUFF
-    
-# }
-## AWS HOUSE
-REGIONS = {
-    'dining_room': (4.5, 8.5, 0.5, 3.5, 0, 1.5),
-    'kitchen': (6.5, 9.0, -5, 0, 0, 1.5),
-    'bedroom': (-9.0, -3.0, -1.0, 2.4, 0, 1.5)
-}
-## LAB HALLWAY
-# ELEVATOR = (-1.0, -18.7, 3.14)
-
-## LAB 07-21-22
-# REGIONS = {
-#     'elevator':(-4.5, -4.2, -1.2, -1.5, 0, 1)
-# }
-
-## LAB 07-24-22
-# REGIONS = {
-#     'elevator': (5.5, 5.6, 0.8, 1.2, 0, 2)
-# }
-
-## HALLWAY 07-24-22
-# REGIONS = {
-#     'elevator': (-7, -8, 18, 19, 0, 3)
-# }
 class State():
     def __init__(self, action_history):
         self.action_history = action_history
@@ -69,14 +28,12 @@ class State():
 class Region():
     def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z):
         self.name = name
-        # rospy.logwarn(self.name)
         self.min_x = min_x
         self.max_x = max_x
         self.min_y = min_y
         self.max_y = max_y
         self.min_z = min_z
         self.max_z = max_z
-        # rospy.logwarn(self.min_x, self.min_y, self.min_z, self.max_x, self.max_y, self.max_z)
         self.pub = rospy.Publisher("/region/{}".format(name), Marker, queue_size=1)
         self.marker = Marker()
         self.marker.id = 0
@@ -95,15 +52,12 @@ class Region():
         self.marker.scale.x = max_x - min_x
         self.marker.scale.y = max_y - min_y
         self.marker.scale.z = max_z - min_z
-        # rospy.logwarn(self.name)
-        # rospy.logwarn(self.marker)
         self.pub.publish(self.marker)
     
     def __hash__(self):
         return hash(self.name)
 
     def publish(self):
-
         self.pub.publish(self.marker)        
     
     def get_bounds(self):
@@ -165,20 +119,17 @@ class ActionClient():
     
 class SFMClient():
     def __init__(self, experiment_config=None):
+        # Experiment-specific stuff
+        self.ac = ActionClient()
         self.neg_regions = set()
         self.regions = {}
         self.experiment_config = experiment_config
         self.record = rospy.get_param("~record")
-        self.start_exp_sub = rospy.Subscriber("/start_experiment", String, self.run)
+        self.kb = init_knowledge_base(rospy.get_param('~sf_dir'), experiment_config['frames'])
+        self.state = State(experiment_config['action_history'])
         for region in experiment_config['regions']:
             self.regions[region['name']] = Region(region['name'], float(region['min_x']), float(region['max_x']), float(region['min_y']), float(region['max_y']), float(region['min_z']), float(region['max_z']))
-        self.object_filters = {}
-        for object in experiment_config['objects']:
-            name = object['name']
-            priors = {}
-            for prior in object['priors']:
-                priors[self.regions[prior['name']]] = float(prior['weight'])
-            self.object_filters[object['name']] = ObjectParticleFilter(100, valid_regions=priors, label=name)
+        # TODO (kisailus): Give robot ground truth observations at init??
         self.observations = {}
         try:
             for observation in experiment_config['observations']:
@@ -188,15 +139,18 @@ class SFMClient():
             # no observations in the experiment config... that's fine
             pass
 
-        self.state = State(experiment_config['action_history'])
-        self.frame_filters = {}
+        # Filters
+        self.object_filters = {}
+        for object in experiment_config['objects']:
+            name = object['name']
+            priors = {}
+            for prior in object['priors']:
+                priors[self.regions[prior['name']]] = float(prior['weight'])
+            self.object_filters[object['name']] = ObjectParticleFilter(100, valid_regions=priors, label=name)
 
-        self.kb = init_knowledge_base(rospy.get_param('~sf_dir'), experiment_config['frames'])
-        self.execute_frame_sub = rospy.Subscriber("/execute", String, self.execute_frame)
-        self.ac = ActionClient()
-        for i, frame in enumerate(self.kb):
-            valid_regions = None
-            filter = FrameParticleFilter(200, frame.name, frame.preconditions, frame.core_frame_elements, valid_regions)
+        self.frame_filters = {}
+        for _, frame in enumerate(self.kb):
+            filter = FrameParticleFilter(200, frame.name, frame.preconditions, frame.core_frame_elements)
             for cfe in frame.core_frame_elements:
                 filter.add_frame_element(self.object_filters[cfe], cfe)
             self.frame_filters[frame.name] = filter
@@ -205,22 +159,30 @@ class SFMClient():
             for precondition in frame.preconditions:
                 print("Adding {} for {}".format(precondition, frame.name))
                 self.frame_filters[frame.name].add_precondition(self.frame_filters[precondition], precondition)
-        for _, filter in self.frame_filters.items():
-            print(filter.label)
-            i = 0
-            try:
-                for _, weight in filter.valid_regions.items():
-                    print("\tregion {} weight: {}".format(i, weight))
-            except:
-                print("No valid regions for : {}".format(filter.label))
-                pass
-            for name, fe_filter in filter.frame_element_filters.items():
-                print("\tcfe: {}, filter: {}".format(name, fe_filter.label))
-            try:
-                for name, p_filter in filter.precondition_filters.items():
-                    print("\tpcond: {}, filter: {}".format(name, p_filter.label))
-            except AttributeError:
-                print("No preconditions!")
+
+        # ROS subscribers
+        self.start_exp_sub = rospy.Subscriber("/start_experiment", String, self.run)
+        self.execute_frame_sub = rospy.Subscriber("/execute", String, self.execute_frame)
+        
+
+
+        # Debug info for frames
+        # for _, filter in self.frame_filters.items():
+        #     print(filter.label)
+        #     i = 0
+        #     try:
+        #         for _, weight in filter.valid_regions.items():
+        #             print("\tregion {} weight: {}".format(i, weight))
+        #     except:
+        #         print("No valid regions for : {}".format(filter.label))
+        #         pass
+        #     for name, fe_filter in filter.frame_element_filters.items():
+        #         print("\tcfe: {}, filter: {}".format(name, fe_filter.label))
+        #     try:
+        #         for name, p_filter in filter.precondition_filters.items():
+        #             print("\tpcond: {}, filter: {}".format(name, p_filter.label))
+        #     except AttributeError:
+        #         print("No preconditions!")
         
 
     def publish_regions(self):
@@ -231,32 +193,27 @@ class SFMClient():
 
 
     def update_filters(self, publish=True):
-        # if self.update:
         for _, filter in self.object_filters.items():
             filter.update_filter()
-            # rospy.logwarn(filter.label)
             if publish:
                 filter.publish()
         for _, filter in self.frame_filters.items():
             filter.update_filter(self.state)
-            # rospy.logwarn(filter.label)
             if publish:
                 filter.publish()
     
     def add_observations(self, possible_observations=[]):
-        # add observations if they are within 5m of the robot's current pose
+        # add observations if they are within 5m of the robot's current pose, else add negative region
         cur_pose = self.state.pose
-        # rospy.logwarn("Cur pose is ({:.4f}, {:.4f})".format(cur_pose.position.x, cur_pose.position.y))
         for _, filter in self.object_filters.items():
             added = False
             for observation in possible_observations:
                 x_dist = (observation['x'] - cur_pose.position.x)**2
                 y_dist = (observation['y'] - cur_pose.position.y)**2
-                if np.sqrt(x_dist + y_dist) < 5.0:
+                if np.sqrt(x_dist + y_dist) <= 5.0:
                     filter.add_observation_from_config(observation['x'], observation['y'], observation['z'])
                     added = True
             if not added:
-                rospy.logwarn("Adding neg region to {}".format(filter.label))
                 min_x = cur_pose.position.x - 2
                 max_x = cur_pose.position.x + 2
                 min_y = cur_pose.position.y - 2
@@ -285,8 +242,6 @@ class SFMClient():
         reg = Region("neg_reg_{}".format(len(self.neg_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
         region_added = False
         pos_added = []
-        rospy.logwarn("Frame is {}".format(frame))
-        rospy.logwarn("cur robot pose is: ({}, {})".format(cur_pose.position.x, cur_pose.position.y))
         for _, filter in self.object_filters.items():
             try:
                 for obs in self.experiment_config['observations']:
@@ -426,10 +381,6 @@ class SFMClient():
                     foo.add_observations(experiment_config['observations'])
                 except KeyError:
                     foo.add_observations()
-                # for observation in experiment_config['observations']:
-                #     foo.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
-
-                # execute_pub.publish(frame_name)
         rospy.logwarn("Done!")
 
         
@@ -440,14 +391,9 @@ if __name__ == '__main__':
         experiment_config = yaml.safe_load(file)
     foo = SFMClient(experiment_config)
     rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(experiment_config['title']))
-    # execute_pub = rospy.Publisher('execute', String, queue_size=10)
     
     
     r = rospy.Rate(10)
-    # while not rospy.is_shutdown():
-    #     foo.publish_regions()
-    #     r.sleep()      
-
     i = 0
     while not rospy.is_shutdown():
         # if i < 20:

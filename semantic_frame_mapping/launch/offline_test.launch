@@ -31,6 +31,9 @@
         <arg name="record" value="$(arg record_bag)"/>
     </include>
 
+    <!-- RVIZ -->
+    <node type="rviz" name="rviz" pkg="rviz" args="-d /home/cuhsailus/Desktop/Research/22_academic_year/fetch_sfm_ws/rviz_configs/iros_demo.rviz"/>
+
     <!-- Record a bag -->
     <node if="$(arg record_bag)" 
         pkg="rosbag" 
