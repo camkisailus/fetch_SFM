@@ -12,6 +12,7 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import ros_numpy
 
+from numpy.linalg import inv
 from std_msgs.msg import String, Bool
 from semantic_frame_mapping.msg import ObjectDetection
 
@@ -53,6 +54,7 @@ class NeuralNet(object):
             self.prediction,
             queue_size=1
         )
+        #Publisher
         self.detection_pub = rospy.Publisher(
             "/scene/observations",
             ObjectDetectionArray,
@@ -136,6 +138,7 @@ class NeuralNet(object):
             im = images[0].swapaxes(0, 2).swapaxes(0, 1).detach().cpu().numpy().astype(np.uint8)
             im2 = im.copy()
             detected_classes = []
+            box_centroids = []
             for i in range(len(pred[0]['masks'])):
                 msk=pred[0]['masks'][i,0].detach().cpu().numpy()
                 scr=pred[0]['scores'][i].detach().cpu().numpy()
@@ -153,32 +156,33 @@ class NeuralNet(object):
                     # cv2.rectangle(img_cp, (xmin, ymin), (xmax, ymax), (r,g,b), 2)
                     cv2.rectangle(im2, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (r,g,b), 2)
                     # cv2.imshow(str(scr), np.hstack([im,im2])) #oublis instead of imshow
+                    box_centroids.append([centroidbox_x, centroidbox_y])
             # cv2.waitKey()
             # for cls in detected_classes:
             #     rospy.loginfo("Detected {}".format(self.inv_class_labels[cls]))
             self.img_pub.publish(ros_numpy.msgify(Image, im2, encoding="rgb8"))
             self.detection_pub.publish()
+            return box_centroids
             # return centroidbox_x, centroidbox_y
         
     def imageto3D(self):
-        fetchcam_intrinsic = []
-        K = [527.1341414037195, 0.0, 323.8974379222906, 0.0, 525.9099904918304, 227.2282369544078, 0.0, 0.0, 1.0]
-        fetchcam_extrinsic = np.array([[527.1341414037195, 0.0, 323.8974379222906], 
+        image2D = np.array([])
+        box_3D_centroids=np.array([])
+        #K = [527.1341414037195, 0.0, 323.8974379222906, 0.0, 525.9099904918304, 227.2282369544078, 0.0, 0.0, 1.0]
+        fetchcam_intrinsic = np.array([[527.1341414037195, 0.0, 323.8974379222906], 
                                         [0.0, 525.9099904918304, 227.2282369544078], 
                                         [0.0, 0.0, 1.0]])
-        #fetchcam_extrinsic_rotation = fetchcam_extrinsic[0:3,0:3]
-        #fetchcam_extrinsic_translation = fetchcam_extrinsic[:,3]
-        image2D = self.prediction()
-        """ video_frame_cm_height =
-        video_frame_cm_width =
-        video_frame_pixel_height =
-        video_frame_pixel_width = """ 
-
-        image3Dcamera = image2D*inv(fetchcam_intrinsic)
-
+        
+        box_2D_centroids = self.prediction()
+        for i in len(box_2D_centroids):
+            image2D = np.array([box_2D_centroids[i][0],box_2D_centroids[i][1], [1]])
+            image3Dcamera = np.matmul(inv(fetchcam_intrinsic), image2D)
+            box_3D_centroids = np.append([box_3D_centroids], [image3Dcamera], axis=0) # Normalized with Z=1, need conversion
+        self.detection_pub.publish(box_3D_centroids)
+        
         
 
-    # call function at the very end
+    # Publish 3D coordinates of all bounding boxes
     def messagePublisher(self):
         observation = None
         observation.pose.position.x = self.X
@@ -212,3 +216,8 @@ if __name__ == '__main__':
 Filter_low_probablility_stuff
 Project_to_3D
 Publish """
+
+""" video_frame_cm_height =
+        video_frame_cm_width =
+        video_frame_pixel_height =
+        video_frame_pixel_width = """ 
