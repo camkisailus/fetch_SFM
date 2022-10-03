@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 import torchvision.models.segmentation
 import torch
-
+import tf
 import rospy
 import threading
 from sensor_msgs.msg import Image
@@ -18,16 +18,6 @@ from semantic_frame_mapping.msg import ObjectDetection
 
 #imageSize=[600,600]
 #imgPath="Image.jpg"
-
-""" device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')   # train on the GPU or on the CPU, if a GPU is not available
-model = torchvision.models.detection.maskrcnn_resnet50_fpn(pretrained=True)  # load an instance segmentation model pre-trained pre-trained on COCO
-in_features = model.roi_heads.box_predictor.cls_score.in_features  # get number of input features for the classifier
-model.roi_heads.box_predictor = FastRCNNPredictor(in_features,num_classes=2)  # replace the pre-trained head with a new one
-model.load_state_dict(torch.load("10000.torch"))
-model.to(device)# move model to the right device
-model.eval() """
-
-
 
 
 class NeuralNet(object):
@@ -65,12 +55,12 @@ class NeuralNet(object):
             Image,
             queue_size=10
         )
-        # self.img_msg = rospy.Subscriber(
-        #     "/camera/color/image_raw",
-        #     Image,
-        #     self.camera_callback,
-        #     queue_size=1)            
-        # self._bridge = CvBridge()
+        self.img_msg = rospy.Subscriber(
+             "/camera/color/image_rect_color",
+             Image,
+             self.camera_callback,
+             queue_size=1)            
+         #self._bridge = CvBridge()
         self._lock = threading.RLock()
         self._image = None
         # self.imageSize=[600,600]
@@ -168,6 +158,7 @@ class NeuralNet(object):
     def imageto3D(self):
         image2D = np.array([])
         box_3D_centroids=np.array([])
+        MapPoints=np.array([])
         #K = [527.1341414037195, 0.0, 323.8974379222906, 0.0, 525.9099904918304, 227.2282369544078, 0.0, 0.0, 1.0]
         fetchcam_intrinsic = np.array([[527.1341414037195, 0.0, 323.8974379222906], 
                                         [0.0, 525.9099904918304, 227.2282369544078], 
@@ -177,8 +168,17 @@ class NeuralNet(object):
         for i in len(box_2D_centroids):
             image2D = np.array([box_2D_centroids[i][0],box_2D_centroids[i][1], [1]])
             image3Dcamera = np.matmul(inv(fetchcam_intrinsic), image2D)
+            #cameratoMap = image3Dcamera * tf_frame
+            #p = PoseStamped() 
+            tf_R = [0.000, -0.001, 0.295, 0.955]
+            tf_T = [0.031, 0.019, -1.382] 
+            cameratoMap = image3Dcamera * [tf_R, tf_T; 0, 1]
+            MapPoints = np.append([MapPoints], [cameratoMap], axis=0) # Normalized with Z=1, need conversion
+            #get from depth topic
             box_3D_centroids = np.append([box_3D_centroids], [image3Dcamera], axis=0) # Normalized with Z=1, need conversion
+            #
         self.detection_pub.publish(box_3D_centroids)
+        
         
         
 
