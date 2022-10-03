@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 import torchvision.models.segmentation
 import torch
-import tf
+# import tf
 import rospy
 import threading
 from sensor_msgs.msg import Image
@@ -14,7 +14,7 @@ import ros_numpy
 
 from numpy.linalg import inv
 from std_msgs.msg import String, Bool
-from semantic_frame_mapping.msg import ObjectDetection
+from semantic_frame_mapping.msg import ObjectDetection, ObjectDetectionArray
 
 #imageSize=[600,600]
 #imgPath="Image.jpg"
@@ -41,7 +41,7 @@ class NeuralNet(object):
         self.run_net = rospy.Subscriber(
             "/user/run_detection",
             Bool,
-            self.prediction,
+            self.imageto3D,
             queue_size=1
         )
         #Publisher
@@ -118,7 +118,7 @@ class NeuralNet(object):
         images = list(image.to(self.device) for image in images)
         return images
     
-    def prediction(self, msg):
+    def prediction(self):
         with self._lock:
             with torch.no_grad():
                 images = self.filter_network()
@@ -151,11 +151,11 @@ class NeuralNet(object):
             # for cls in detected_classes:
             #     rospy.loginfo("Detected {}".format(self.inv_class_labels[cls]))
             self.img_pub.publish(ros_numpy.msgify(Image, im2, encoding="rgb8"))
-            self.detection_pub.publish()
+            # self.detection_pub.publish()
             return box_centroids
             # return centroidbox_x, centroidbox_y
         
-    def imageto3D(self):
+    def imageto3D(self, msg):
         image2D = np.array([])
         box_3D_centroids=np.array([])
         MapPoints=np.array([])
@@ -163,21 +163,33 @@ class NeuralNet(object):
         fetchcam_intrinsic = np.array([[527.1341414037195, 0.0, 323.8974379222906], 
                                         [0.0, 525.9099904918304, 227.2282369544078], 
                                         [0.0, 0.0, 1.0]])
-        
+        detectionmsg = ObjectDetectionArray()
         box_2D_centroids = self.prediction()
-        for i in len(box_2D_centroids):
-            image2D = np.array([box_2D_centroids[i][0],box_2D_centroids[i][1], [1]])
+        for i in range(len(box_2D_centroids)):
+            image2D = np.array([box_2D_centroids[i][0],box_2D_centroids[i][1], 1])
+            # rospy.loginfo(image2D)
+            # rospy.loginfo(image2D.shape)
+            # rospy.logwarn("######################")
+            # rospy.loginfo(fetchcam_intrinsic)
+            # rospy.loginfo(fetchcam_intrinsic.shape)
             image3Dcamera = np.matmul(inv(fetchcam_intrinsic), image2D)
             #cameratoMap = image3Dcamera * tf_frame
             #p = PoseStamped() 
-            tf_R = [0.000, -0.001, 0.295, 0.955]
-            tf_T = [0.031, 0.019, -1.382] 
-            cameratoMap = image3Dcamera * [tf_R, tf_T; 0, 1]
-            MapPoints = np.append([MapPoints], [cameratoMap], axis=0) # Normalized with Z=1, need conversion
+            # tf_R = [0.000, -0.001, 0.295, 0.955]
+            # tf_T = [0.031, 0.019, -1.382] 
+            # cameratoMap = image3Dcamera * [tf_R, tf_T; 0, 1]
+            # MapPoints = np.append([MapPoints], [cameratoMap], axis=0) # Normalized with Z=1, need conversion
             #get from depth topic
-            box_3D_centroids = np.append([box_3D_centroids], [image3Dcamera], axis=0) # Normalized with Z=1, need conversion
+            detection = ObjectDetection()
+            detection.pose.position.x = image3Dcamera[0]
+            detection.pose.position.y = image3Dcamera[1]
+            detection.pose.position.z = image3Dcamera[2]
+            detection.pose.orientation.w = 1
+            detectionmsg.detections.append(detection)
+            # box_3D_centroids = np.append([box_3D_centroids], [image3Dcamera], axis=0) # Normalized with Z=1, need conversion
             #
-        self.detection_pub.publish(box_3D_centroids)
+        self.detection_pub.publish(detectionmsg)
+        # self.detection_pub.publish(box_3D_centroids)
         
         
         
