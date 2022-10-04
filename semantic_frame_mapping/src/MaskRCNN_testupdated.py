@@ -1,12 +1,13 @@
-#! /usr/bin/python
+#! /home/cuhsailus/anaconda3/envs/maskRcnn/bin/python 
+# /usr/bin/python
 import random
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import numpy as np
 import cv2
 import torchvision.models.segmentation
 import torch
-# import tf
-import rospy, tf2_ros, geometry_msgs
+import tf
+import rospy, geometry_msgs#, tf2_geometry_msgs, tf2_ros
 import threading
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
@@ -31,8 +32,9 @@ class NeuralNet(object):
         self.model.load_state_dict(torch.load(rospy.get_param("~weights_path")))
         self.model.to(self.device)# move model to the right device
         self.model.eval()
-
-        self.transform_listener = tf2_ros.TransformListener()
+        # self.tfBuffer = tf2_ros.Buffer()
+        # self.transform_listener = tf2_ros.TransformListener(self.tfBuffer)
+        self.transform_listener = tf.TransformListener()
         #Subscriber
         self.img_msg = rospy.Subscriber(
             "/head_camera/rgb/image_raw",
@@ -46,7 +48,7 @@ class NeuralNet(object):
             queue_size=1
         )
         self.img_depth_msg = rospy.Subscriber(
-            "/head_camera/depth/image_raw",
+            "/head_camera/depth_registered/image",
             Image,
             self.camera_depth_callback,
             queue_size=1)
@@ -120,9 +122,11 @@ class NeuralNet(object):
         with self._lock:
             try:
                 rospy.loginfo_once('Depth Received')
-                self.image_depth = Img_depth_msg
+                self.image_depth = ros_numpy.numpify(Img_depth_msg)
+                # rospy.loginfo(self.image_depth.shape)
+                # rospy.loginfo(np.unique(self.image_depth))
             except (CvBridgeError, TypeError) as e:
-                rospy.logerr(
+                rospy.logerr(   
                     'Could not convert img msg to cv2. Error: {}'.format(e))
                 return       
 
@@ -144,6 +148,7 @@ class NeuralNet(object):
 
             im = images[0].swapaxes(0, 2).swapaxes(0, 1).detach().cpu().numpy().astype(np.uint8)
             im2 = im.copy()
+            dp_img_cp = self.image_depth.copy()
             detected_classes = []
             box_centroids = []
             for i in range(len(pred[0]['masks'])):
@@ -162,12 +167,14 @@ class NeuralNet(object):
                     centroidbox_y = (box[1] + box[3])/2
                     # cv2.rectangle(img_cp, (xmin, ymin), (xmax, ymax), (r,g,b), 2)
                     cv2.rectangle(im2, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (r,g,b), 2)
+                    # cv2.rectangle(dp_img_cp, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (r,g,b), 2)
                     # cv2.imshow(str(scr), np.hstack([im,im2])) #oublis instead of imshow
                     box_centroids.append([centroidbox_x, centroidbox_y])
             # cv2.waitKey()
             # for cls in detected_classes:
             #     rospy.loginfo("Detected {}".format(self.inv_class_labels[cls]))
             self.img_pub.publish(ros_numpy.msgify(Image, im2, encoding="rgb8"))
+            # self.d_img_pub.publish(ros_numpy.msgify(Image, dp_img_cp, encoding="uint8"))
             # self.detection_pub.publish()
             return box_centroids
             # return centroidbox_x, centroidbox_y
@@ -180,71 +187,48 @@ class NeuralNet(object):
         fetchcam_intrinsic = np.array([[527.1341414037195, 0.0, 323.8974379222906], 
                                         [0.0, 525.9099904918304, 227.2282369544078], 
                                         [0.0, 0.0, 1.0]])
-        detectionmsg = ObjectDetectionArray()
+
         detectionmsg_actual3d = ObjectDetectionArray()#after all conversions
         box_2D_centroids = self.prediction()
-        Zc = self.img_depth.data[0]
+        # Zc = self.img_depth.data[0]
         for i in range(len(box_2D_centroids)):
-            Zc = self.img_depth.data[box_2D_centroids[i][0]][box_2D_centroids[i][1]]
-            image2D = np.array([Zc*box_2D_centroids[i][0],Zc*box_2D_centroids[i][1], 1*Zc])
-            # rospy.loginfo(image2D)
-            # rospy.loginfo(image2D.shape)
-            # rospy.logwarn("######################")
-            # rospy.loginfo(fetchcam_intrinsic)
-            # rospy.loginfo(fetchcam_intrinsic.shape)
-            image3Dcamera = np.matmul(inv(fetchcam_intrinsic), image2D)
-            # MapPoints = np.append([MapPoints], [cameratoMap], axis=0) # Normalized with Z=1, need conversion
-            #get from depth topic
-            detection = ObjectDetection()
-            detection.pose.position.x = image3Dcamera[0]
-            detection.pose.position.y = image3Dcamera[1]
-            detection.pose.position.z = image3Dcamera[2]
-            detection.pose.orientation.w = 1
-            detectionmsg.detections.append(detection)
-            # box_3D_centroids = np.append([box_3D_centroids], [image3Dcamera], axis=0) # Normalized with Z=1, need conversion
-            #For conversion to different frames
-            """ point2transform = PointStamped()
-            pointtransformed = PointStamped()
-            point2transform.header.frame_id = 'head_camera_frame'
-            point2transform.header.stamp =rospy.Time(0)
-            point2transform.point.x = image3Dcamera[0]
-            point2transform.point.y = image3Dcamera[1]
-            point2transform.point.z = image3Dcamera[2]
-            self.transform_listener.transformPoint('base_link', point2transform)
-            rospy.loginfo(point_transformed)
-            p_transform_position, p_tranform_quaternion = self.transform_listener.lookupTransform('head_camera_frame', 'base_link', rospy.Time(0))
-             """
-            
-            point2transform_point = geometry_msgs.msg.PointStamped()
-            point2transform_pose = geometry_msgs.msg.PoseStamped()
-            point2transform_point.header.frame_id = 'head_pan_link'
-            point2transform_pose.header.frame_id = 'head_pan_link'
+            # rospy.loginfo("Centroid loc: ({})u,v".format(box_2D_centroids[i]))
 
-            point2transform_point.point.x = image3Dcamera[0]
-            point2transform_point.point.y = image3Dcamera[1]
-            point2transform_point.point.z = image3Dcamera[2]
+            # Zc = self.image_depth[int(box_2D_centroids[i][0])][int(box_2D_centroids[i][1])] / 1000
+            Zc = self.image_depth[int(box_2D_centroids[i][1])][int(box_2D_centroids[i][0])] / 1000
+            rospy.logwarn("Zc = {}".format(Zc))
+            image2D = np.array([box_2D_centroids[i][0],box_2D_centroids[i][1], 1])
+
+            image3Dcamera = np.matmul(inv(fetchcam_intrinsic), image2D)
+            point2transform_pose = geometry_msgs.msg.PoseStamped()
+
+            point2transform_pose.header.frame_id = 'head_camera_rgb_optical_frame'
+            point2transform_pose.header.stamp = rospy.Time.now()
+
+            point2transform_pose.pose.position.x = image3Dcamera[0] * Zc
+            point2transform_pose.pose.position.y = image3Dcamera[1] * Zc
+            point2transform_pose.pose.position.z = image3Dcamera[2] * Zc
             
             point2transform_pose.pose.orientation.x = 0
             point2transform_pose.pose.orientation.y = 0
             point2transform_pose.pose.orientation.z = 0
             point2transform_pose.pose.orientation.w = 1
-            
-            detection_actual3d = ObjectDetection()
-            self.transform_listener.waitForTransform("//head_pan_link", "/base_link", rospy.Time.now(). rospy.Duration(2.0))
+            self.transform_listener.waitForTransform("/head_camera_rgb_optical_frame", "/base_link", rospy.Time.now(), rospy.Duration(2.0))
             try:
-                point_transformed = self.transform_listener.transfromPoint('/base_link', point2transform_point)
-                pose_transformed = self.transform_listener.transfromPoint('/base_link', point2transform_pose)
-                rospy.loginfo(point_transformed)
-                rospy.loginfo(pose_transformed)
-            except: (tf2_ros.Exception, tf2_ros.ConnectivityException, tf2_ros.LookupException):
-                rospy.loginfo("TF Exception")
+                # rospy.logwarn(point2transform_pose)
+                pose_transformed = self.transform_listener.transformPose('/base_link', point2transform_pose)
+            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException, Exception) as e:
+                rospy.loginfo("TF Exception... {}".format(e))
                 return  
             
-            detection_actual3d.Point = point_transformed
-            detection_actual3d.Quaternion = pose_transformed
+            # detection_actual3d.Point = point_transformed
+            # TODO: Add label info to detection_actual3d.label
+            detection_actual3d = ObjectDetection()
+            detection_actual3d.pose = pose_transformed
+            detection_actual3d.label = "foo"
             detectionmsg_actual3d.detections.append(detection_actual3d)
             
-            
+        rospy.loginfo(detectionmsg_actual3d)
         self.detection_pub.publish(detectionmsg_actual3d)
         #self.detection_pub.publish(detectionmsg)
         # self.detection_pub.publish(box_3D_centroids)
