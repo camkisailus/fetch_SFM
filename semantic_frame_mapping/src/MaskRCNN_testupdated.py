@@ -1,4 +1,4 @@
-#! /home/cuhsailus/anaconda3/envs/maskRcnn/bin/python
+#! /usr/bin/python
 import random
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import numpy as np
@@ -6,7 +6,7 @@ import cv2
 import torchvision.models.segmentation
 import torch
 # import tf
-import rospy
+import rospy, tf2_ros, geometry_msgs
 import threading
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
@@ -32,6 +32,7 @@ class NeuralNet(object):
         self.model.to(self.device)# move model to the right device
         self.model.eval()
 
+        self.transform_listener = tf2_ros.TransformListener()
         #Subscriber
         self.img_msg = rospy.Subscriber(
             "/head_camera/rgb/image_raw",
@@ -44,6 +45,11 @@ class NeuralNet(object):
             self.imageto3D,
             queue_size=1
         )
+        self.img_depth = rospy.Subscriber(
+            "/head_camera/depth/image_raw",
+            Image,
+            self.camera_callback,
+            queue_size=1)
         #Publisher
         self.detection_pub = rospy.Publisher(
             "/scene/observations",
@@ -164,20 +170,17 @@ class NeuralNet(object):
                                         [0.0, 525.9099904918304, 227.2282369544078], 
                                         [0.0, 0.0, 1.0]])
         detectionmsg = ObjectDetectionArray()
+        detectionmsg_actual3d = ObjectDetectionArray()#after all conversions
         box_2D_centroids = self.prediction()
+        Zc = self.img_depth.data[0]
         for i in range(len(box_2D_centroids)):
-            image2D = np.array([box_2D_centroids[i][0],box_2D_centroids[i][1], 1])
+            image2D = np.array([Zc*box_2D_centroids[i][0],Zc*box_2D_centroids[i][1], 1*Zc])
             # rospy.loginfo(image2D)
             # rospy.loginfo(image2D.shape)
             # rospy.logwarn("######################")
             # rospy.loginfo(fetchcam_intrinsic)
             # rospy.loginfo(fetchcam_intrinsic.shape)
             image3Dcamera = np.matmul(inv(fetchcam_intrinsic), image2D)
-            #cameratoMap = image3Dcamera * tf_frame
-            #p = PoseStamped() 
-            # tf_R = [0.000, -0.001, 0.295, 0.955]
-            # tf_T = [0.031, 0.019, -1.382] 
-            # cameratoMap = image3Dcamera * [tf_R, tf_T; 0, 1]
             # MapPoints = np.append([MapPoints], [cameratoMap], axis=0) # Normalized with Z=1, need conversion
             #get from depth topic
             detection = ObjectDetection()
@@ -187,7 +190,45 @@ class NeuralNet(object):
             detection.pose.orientation.w = 1
             detectionmsg.detections.append(detection)
             # box_3D_centroids = np.append([box_3D_centroids], [image3Dcamera], axis=0) # Normalized with Z=1, need conversion
-            #
+            #For conversion to different frames
+            """ point2transform = PointStamped()
+            pointtransformed = PointStamped()
+            point2transform.header.frame_id = 'head_camera_frame'
+            point2transform.header.stamp =rospy.Time(0)
+            point2transform.point.x = image3Dcamera[0]
+            point2transform.point.y = image3Dcamera[1]
+            point2transform.point.z = image3Dcamera[2]
+            self.transform_listener.transformPoint('base_link', point2transform)
+            rospy.loginfo(point_transformed)
+            p_transform_position, p_tranform_quaternion = self.transform_listener.lookupTransform('head_camera_frame', 'base_link', rospy.Time(0))
+             """
+            
+            point2transform_point = geometry_msgs.msg.PointStamped()
+            point2transform_pose = geometry_msgs.msg.PoseStamped()
+            point2transform_point.header.frame_id = 'head_camera_frame'
+            point2transform_pose.header.frame_id = 'head_camera_frame'
+
+            point2transform_point.point.x = image3Dcamera[0]
+            point2transform_point.point.y = image3Dcamera[1]
+            point2transform_point.point.z = image3Dcamera[2]
+            
+            point2transform_pose.pose.orientation.x = 0
+            point2transform_pose.pose.orientation.y = 0
+            point2transform_pose.pose.orientation.z = 0
+            point2transform_pose.pose.orientation.w = 1
+            
+            detection_actual3d = ObjectDetection()
+            point_transformed = self.transform_listener.transfromPoint('/base_link', point2transform_point)
+            pose_transformed = self.transform_listener.transfromPoint('/base_link', point2transform_pose)
+            rospy.loginfo(point_transformed)
+            rospy.loginfo(pose_transformed)
+
+            detection_actual3d.Point = point_transformed
+            detection_actual3d.Quaternion = pose_transformed
+            detectionmsg_actual3d.detections.append(detection_actual3d)
+            
+            
+        self.detection_pub.publish(detectionmsg_actual3d)
         self.detection_pub.publish(detectionmsg)
         # self.detection_pub.publish(box_3D_centroids)
         
@@ -195,19 +236,19 @@ class NeuralNet(object):
         
 
     # Publish 3D coordinates of all bounding boxes
-    def messagePublisher(self):
+    """ def messagePublisher(self):
         observation = None
         observation.pose.position.x = self.X
         observation.pose.position.y = self.Y
         observation.pose.position.z = self.Z
         
-        msg = f"Hello, the pose is {self.X}, {self.Y}, {self.Z}, and the angle is {self.thetaX}, {self.thetaY}, {self.thetaZ} \n"
+        msg = "Hello"#f"Hello, the pose is {self.X}, {self.Y}, {self.Z}, and the angle is {self.thetaX}, {self.thetaY}, {self.thetaZ} \n"
         
         message_publisher_string = rospy.Publisher('pose_msg', String, queue_size=10)
         message_publisher = rospy.Publisher('scene/observations', ObjectDetection, queue_size=10)
         
         message_publisher.publish(observation)
-        message_publisher_string.publish(msg)
+        message_publisher_string.publish(msg) """
 
 
 
