@@ -45,10 +45,10 @@ class NeuralNet(object):
             self.imageto3D,
             queue_size=1
         )
-        self.img_depth = rospy.Subscriber(
+        self.img_depth_msg = rospy.Subscriber(
             "/head_camera/depth/image_raw",
             Image,
-            self.camera_callback,
+            self.camera_depth_callback,
             queue_size=1)
         #Publisher
         self.detection_pub = rospy.Publisher(
@@ -69,6 +69,7 @@ class NeuralNet(object):
          #self._bridge = CvBridge()
         self._lock = threading.RLock()
         self._image = None
+        self.image_depth = None
         # self.imageSize=[600,600]
         # Final pose values
         self.X = 0
@@ -114,6 +115,16 @@ class NeuralNet(object):
                 rospy.logerr(
                     'Could not convert img msg to cv2. Error: {}'.format(e))
                 return
+
+    def camera_depth_callback(self, Img_depth_msg):
+        with self._lock:
+            try:
+                rospy.loginfo_once('Depth Received')
+                self.image_depth = Img_depth_msg
+            except (CvBridgeError, TypeError) as e:
+                rospy.logerr(
+                    'Could not convert img msg to cv2. Error: {}'.format(e))
+                return       
 
     def filter_network(self):
         images = self._image
@@ -163,8 +174,8 @@ class NeuralNet(object):
         
     def imageto3D(self, msg):
         image2D = np.array([])
-        box_3D_centroids=np.array([])
-        MapPoints=np.array([])
+        #box_3D_centroids=np.array([])
+        #MapPoints=np.array([])
         #K = [527.1341414037195, 0.0, 323.8974379222906, 0.0, 525.9099904918304, 227.2282369544078, 0.0, 0.0, 1.0]
         fetchcam_intrinsic = np.array([[527.1341414037195, 0.0, 323.8974379222906], 
                                         [0.0, 525.9099904918304, 227.2282369544078], 
@@ -174,6 +185,7 @@ class NeuralNet(object):
         box_2D_centroids = self.prediction()
         Zc = self.img_depth.data[0]
         for i in range(len(box_2D_centroids)):
+            Zc = self.img_depth.data[box_2D_centroids[i][0]][box_2D_centroids[i][1]]
             image2D = np.array([Zc*box_2D_centroids[i][0],Zc*box_2D_centroids[i][1], 1*Zc])
             # rospy.loginfo(image2D)
             # rospy.loginfo(image2D.shape)
@@ -205,8 +217,8 @@ class NeuralNet(object):
             
             point2transform_point = geometry_msgs.msg.PointStamped()
             point2transform_pose = geometry_msgs.msg.PoseStamped()
-            point2transform_point.header.frame_id = 'head_camera_frame'
-            point2transform_pose.header.frame_id = 'head_camera_frame'
+            point2transform_point.header.frame_id = 'head_pan_link'
+            point2transform_pose.header.frame_id = 'head_pan_link'
 
             point2transform_point.point.x = image3Dcamera[0]
             point2transform_point.point.y = image3Dcamera[1]
@@ -218,6 +230,7 @@ class NeuralNet(object):
             point2transform_pose.pose.orientation.w = 1
             
             detection_actual3d = ObjectDetection()
+            self.transform_listener.waitForTransform("//head_pan_link", "/base_link", rospy.Time.now(). rospy.Duration(2.0))
             point_transformed = self.transform_listener.transfromPoint('/base_link', point2transform_point)
             pose_transformed = self.transform_listener.transfromPoint('/base_link', point2transform_pose)
             rospy.loginfo(point_transformed)
