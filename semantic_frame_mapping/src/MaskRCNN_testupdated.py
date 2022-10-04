@@ -231,18 +231,22 @@ class NeuralNet(object):
             
             detection_actual3d = ObjectDetection()
             self.transform_listener.waitForTransform("//head_pan_link", "/base_link", rospy.Time.now(). rospy.Duration(2.0))
-            point_transformed = self.transform_listener.transfromPoint('/base_link', point2transform_point)
-            pose_transformed = self.transform_listener.transfromPoint('/base_link', point2transform_pose)
-            rospy.loginfo(point_transformed)
-            rospy.loginfo(pose_transformed)
-
+            try:
+                point_transformed = self.transform_listener.transfromPoint('/base_link', point2transform_point)
+                pose_transformed = self.transform_listener.transfromPoint('/base_link', point2transform_pose)
+                rospy.loginfo(point_transformed)
+                rospy.loginfo(pose_transformed)
+            except: (tf2_ros.Exception, tf2_ros.ConnectivityException, tf2_ros.LookupException):
+                rospy.loginfo("TF Exception")
+                return  
+            
             detection_actual3d.Point = point_transformed
             detection_actual3d.Quaternion = pose_transformed
             detectionmsg_actual3d.detections.append(detection_actual3d)
             
             
         self.detection_pub.publish(detectionmsg_actual3d)
-        self.detection_pub.publish(detectionmsg)
+        #self.detection_pub.publish(detectionmsg)
         # self.detection_pub.publish(box_3D_centroids)
         
         
