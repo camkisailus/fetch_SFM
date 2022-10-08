@@ -1,0 +1,5 @@
+<launch>
+    <node pkg="semantic_frame_mapping" type="MaskRCNN_testyolo.py" name="yolo" output="screen">
+        <param name="weights_path" value="$(find semantic_frame_mapping)/config/yolo.torch"/>
+    </node>
+</launch>
