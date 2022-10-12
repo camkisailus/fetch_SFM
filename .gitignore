@@ -2,3 +2,4 @@ __pycache__/
 *.torch
 geometry2_python3
 aws-robomaker-small-house-world
+perception/config/

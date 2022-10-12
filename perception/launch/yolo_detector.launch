@@ -1,0 +1,5 @@
+<launch>
+    <node pkg="perception" type="yolo_detection_node.py" name="YOLO_detector" output="screen">
+        <param name="model_weights" value="/home/cuhsailus/Desktop/Research/22_academic_year/yolov7/weights/epoch_024.pt"/>
+    </node>
+</launch>
