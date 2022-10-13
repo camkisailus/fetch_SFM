@@ -1,0 +1,5 @@
+<launch>
+    <node pkg="semantic_frame_mapping" type="MaskRCNN_testupdated.py" name="MaskRCNN_detector" output="screen">
+        <param name="weights_path" value="$(find semantic_frame_mapping)/config/MaskRCNN_best.torch"/>
+    </node>
+</launch>
