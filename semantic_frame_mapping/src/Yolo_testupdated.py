@@ -252,6 +252,7 @@ class NeuralNet(object):
                         if self.save_img or self.view_img:  # Add bbox to image
                             label = f'{self.names[int(cls)]} {conf:.2f}'
                             plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=1)
+                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist() #to get the centroids
                         box_centroids.append([xywh[0], xywh[1]])
                         labels.appends(label)    
                 # Print time (inference + NMS)
@@ -303,8 +304,8 @@ class NeuralNet(object):
                 else:
                         box_centroids = self.detect()
 
-            #to publish image and return centoids
-            self.img_pub.publish(ros_numpy.msgify(Image, im2, encoding="rgb8"))
+            #to publish image and return centroids
+            #self.img_pub.publish(ros_numpy.msgify(Image, im2, encoding="rgb8"))
             return box_centroids
         
         
