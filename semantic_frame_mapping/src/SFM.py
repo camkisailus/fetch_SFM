@@ -106,10 +106,10 @@ class ActionClient():
         self.point_head_client.wait_for_result()
     
     def pick(self, mode=0, goal=None):
+        request = PickRequestGoal()
         if mode == 1:
             assert(goal is not None)
-            request.goal = goal
-        request = PickRequestGoal()
+            request.pick_pose = goal
         request.mode = mode
         self.pick_client.send_goal(request)
         rospy.loginfo("Sent pick_client goal")
@@ -146,11 +146,11 @@ class SFMClient():
             priors = {}
             for prior in object['priors']:
                 priors[self.regions[prior['name']]] = float(prior['weight'])
-            self.object_filters[object['name']] = ObjectParticleFilter(100, valid_regions=priors, label=name)
+            self.object_filters[object['name']] = ObjectParticleFilter(20, valid_regions=priors, label=name)
 
         self.frame_filters = {}
         for _, frame in enumerate(self.kb):
-            filter = FrameParticleFilter(200, frame.name, frame.preconditions, frame.core_frame_elements)
+            filter = FrameParticleFilter(100, frame.name, frame.preconditions, frame.core_frame_elements)
             for cfe in frame.core_frame_elements:
                 filter.add_frame_element(self.object_filters[cfe], cfe)
             self.frame_filters[frame.name] = filter
@@ -279,79 +279,129 @@ class SFMClient():
                 self.neg_regions.add(reg)
         return False
 
-
-
+    def dist(self, robot, obj):
+        x_dist = np.abs(robot.position.x - obj.x)
+        y_dist = np.abs(robot.position.y - obj.y)
+        # z_dist = np.abs(robot.position.z - obj.z)
+        return np.sqrt(x_dist**2 + y_dist**2)
 
     def execute_frame(self, frame_name):
-        rospy.logwarn("Got msg to execute {}".format(frame_name))
-        preconditions = []
-        if self.frame_filters[frame_name].preconditions is not None:
-            preconditions = self.frame_filters[frame_name].preconditions
-        else:
-            preconditions = []
-            cur_action = frame_name
-        rospy.logwarn("{} has preconditions: {}".format(frame_name, preconditions))
-        for frame in preconditions:
-            if frame in self.state.action_history:
-                # pop action off preconditions since it's completed
-                preconditions = preconditions[1:]
-            else:
-                cur_action = frame
-        rospy.logwarn("Cur action is : {}".format(cur_action))
+        if frame_name.data == 'grasp_master_chef_can':
+            rospy.logwarn("Got request to grasp master can")
+            rospy.logwarn("First going to look at the can")
+            # frame_bgmm = self.frame_filters['grasp_master_chef_can'].bgmm()
+            grasp_mcc = self.frame_filters[frame_name.data]
+            mcc_obj = grasp_mcc.frame_element_filters['master_chef_can']
+            mcc_det = mcc_obj.observations[0]
+            # pick_pose = Pose()
+            # pick_pose.position.x = mcc_det.x
+            # pick_pose.position.y = mcc_det.y + 0.02
+            # pick_pose.position.z = mcc_det.z
+            # rospy.logwarn("Sending pick location to picker")
+            # self.ac.pick(mode=1, goal=pick_pose)
+            
+            # means, covs, weights = self.frame_filters[frame_name.data].bgmm()
+            # max_idx = np.argmax(weights)
+            # max_weight_mean = means[max_idx]
+            rospy.logwarn("Pointing head to: ({}, {}, {})".format(mcc_det.x, mcc_det.y, mcc_det.z))
+            self.ac.point_head(mcc_det.x, mcc_det.y, mcc_det.z)
+            dist = self.dist(self.state.pose, mcc_det)
+            rospy.logwarn("Object is {} m away from the robot")
+            if dist > 0.8:
+                rospy.logwarn("Now navigate toward the obj")
+                nav_goal_x = mcc_det.x
+                nav_goal_y = mcc_det.y + 0.6
+                nav_goal_t = -np.pi/2  #np.arctan2(mcc_det.x, mcc_det.y)
+                rospy.logwarn("Nav goal: ({}, {}, {})".format(nav_goal_x, nav_goal_y, nav_goal_t))
+                self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
+            self.ac.point_head(mcc_det.x, mcc_det.y, mcc_det.z)
+            pick_pose = Pose()
+            pick_pose.position.x = mcc_det.x
+            pick_pose.position.y = mcc_det.y + 0.02
+            pick_pose.position.z = mcc_det.z
+            rospy.logwarn("Sending pick location to picker")
+            self.ac.pick(mode=1, goal=pick_pose)
+            
+# def pick(self, mode=0, goal=None):
+#     if mode == 1:
+#         assert(goal is not None)
+#         request.goal = goal
+#     request = PickRequestGoal()
+#     request.mode = mode
+#     self.pick_client.send_goal(request)
+#     rospy.loginfo("Sent pick_client goal")
+#     self.pick_client.wait_for_result()
+
+    # def execute_frame(self, frame_name):
+    #     rospy.logwarn("Got msg to execute {}".format(frame_name))
+    #     preconditions = []
+    #     if self.frame_filters[frame_name].preconditions is not None:
+    #         preconditions = self.frame_filters[frame_name].preconditions
+    #     else:
+    #         preconditions = []
+    #         cur_action = frame_name
+    #     rospy.logwarn("{} has preconditions: {}".format(frame_name, preconditions))
+    #     for frame in preconditions:
+    #         if frame in self.state.action_history:
+    #             # pop action off preconditions since it's completed
+    #             preconditions = preconditions[1:]
+    #         else:
+    #             cur_action = frame
+    #     rospy.logwarn("Cur action is : {}".format(cur_action))
         
-        # preconditions = self.frame_filters[frame_name].preconditions
-        for precondition in preconditions:
-            chances = 3
-            precondition_complete = False
-            while chances > 0 and not precondition_complete:
-                rospy.logwarn("Updating filters with {} chance(s) remaining".format(chances))
-                # update filters
-                update_steps = 50
-                for i in range(update_steps):
-                    # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
-                    if self.record:
-                        # if we are recording a bag publish every time
-                        self.update_filters(publish=True)
-                    else:
-                        # if not just publish every 10 updates
-                        self.update_filters(publish=(i%10==0))
-                # go to max
-                means, covs, weights = self.frame_filters[frame_name].bgmm()
-                max_idx = np.argmax(weights)
-                max_weight_mean = means[max_idx]
-                self.ac.go_to(max_weight_mean[0], max_weight_mean[1], 0)
-                precondition_complete = self.run_observation_routine(precondition)
-                if precondition_complete:
-                    self.state.add_action_to_action_history(precondition)
-                chances-=1
-            if not precondition_complete:
-                # out of chances and unable to complete some precondition
-                return False
-        rospy.logwarn("Finished all preconditions!")
-        # finished all preconditions try to do final action
-        chances = 3
-        while chances > 0:
-            rospy.logwarn("Updating filters with {} chance(s) remaining".format(chances))
-            # update filters
-            update_steps = 50
-            for i in range(update_steps):
-                # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
-                if self.record:
-                    # if we are recording a bag publish every time
-                    self.update_filters(publish=True)
-                else:
-                    # if not just publish every 10 updates
-                    self.update_filters(publish=(i%10==0))
-            # go to max
-            means, covs, weights = self.frame_filters[frame_name].bgmm()
-            max_idx = np.argmax(weights)
-            max_weight_mean = means[max_idx]
-            self.ac.go_to(max_weight_mean[0], max_weight_mean[1], 0)
-            task_complete = self.run_observation_routine(frame_name)
-            if task_complete:
-                return True
-            chances-=1
-        return False
+    #     # preconditions = self.frame_filters[frame_name].preconditions
+    #     for precondition in preconditions:
+    #         chances = 3
+    #         precondition_complete = False
+    #         while chances > 0 and not precondition_complete:
+    #             rospy.logwarn("Updating filters with {} chance(s) remaining".format(chances))
+    #             # update filters
+    #             update_steps = 50
+    #             for i in range(update_steps):
+    #                 # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
+    #                 if self.record:
+    #                     # if we are recording a bag publish every time
+    #                     self.update_filters(publish=True)
+    #                 else:
+    #                     # if not just publish every 10 updates
+    #                     self.update_filters(publish=(i%10==0))
+    #             # go to max
+    #             means, covs, weights = self.frame_filters[frame_name].bgmm()
+    #             max_idx = np.argmax(weights)
+    #             max_weight_mean = means[max_idx]
+    #             self.ac.go_to(max_weight_mean[0], max_weight_mean[1], 0)
+    #             precondition_complete = self.run_observation_routine(precondition)
+    #             if precondition_complete:
+    #                 self.state.add_action_to_action_history(precondition)
+    #             chances-=1
+    #         if not precondition_complete:
+    #             # out of chances and unable to complete some precondition
+    #             return False
+    #     rospy.logwarn("Finished all preconditions!")
+    #     # finished all preconditions try to do final action
+    #     chances = 3
+    #     while chances > 0:
+    #         rospy.logwarn("Updating filters with {} chance(s) remaining".format(chances))
+    #         # update filters
+    #         update_steps = 50
+    #         for i in range(update_steps):
+    #             # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
+    #             if self.record:
+    #                 # if we are recording a bag publish every time
+    #                 self.update_filters(publish=True)
+    #             else:
+    #                 # if not just publish every 10 updates
+    #                 self.update_filters(publish=(i%10==0))
+    #         # go to max
+    #         means, covs, weights = self.frame_filters[frame_name].bgmm()
+    #         max_idx = np.argmax(weights)
+    #         max_weight_mean = means[max_idx]
+    #         self.ac.go_to(max_weight_mean[0], max_weight_mean[1], 0)
+    #         task_complete = self.run_observation_routine(frame_name)
+    #         if task_complete:
+    #             return True
+    #         chances-=1
+    #     return False
 
         
             
