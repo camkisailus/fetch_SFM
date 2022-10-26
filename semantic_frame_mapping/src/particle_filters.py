@@ -302,6 +302,14 @@ class ParticleFilter(object):
                 marker.color.r = 1
                 marker.color.b = 1
                 marker.type = marker.CUBE
+            elif self.label == 'mustard_bottle':
+                marker.color.r = 1
+                marker.color.g = 1
+                marker.type = marker.CUBE
+            elif self.label == 'grasp_mustard_bottle':
+                marker.color.r = 1
+                marker.color.g = 1
+                marker.type = marker.SPHERE
             elif self.label == 'grasp_master_chef_can':
                 # red sphere
                 marker.color.b = 1
@@ -411,6 +419,7 @@ class ObjectParticleFilter(ParticleFilter):
         self.observations.append(StaticObject(self.label, x, y, z))
 
     def add_observation(self, msg):
+        # TODO: Isaac make sure multiple instances are handled correctly.
         for observation in msg.detections:
             if observation.label == self.label:
                 new_obs = True
@@ -655,7 +664,7 @@ class FrameParticleFilter(ParticleFilter):
                 for j in range(subtask_filter.n):
                     other_particle = subtask_filter.particles[j, :]
                     dist = np.sqrt((other_particle[0]-particle[0])**2 + (other_particle[1]-particle[1])**2 + (other_particle[2]-particle[2])**2)
-                    phi = math.exp(-5*dist)
+                    phi = math.exp(-10*dist)
                     potential += (phi*subtask_filter.weights[j])
                 i+=1
             return potential
@@ -677,7 +686,7 @@ class FrameParticleFilter(ParticleFilter):
             for j in range(core_element_filter.n):
                 other_particle = core_element_filter.particles[j, :]
                 dist = np.sqrt((other_particle[0]-particle[0])**2 + (other_particle[1]-particle[1])**2 + (other_particle[2]-particle[2])**2)
-                phi = math.exp(-5*dist)
+                phi = math.exp(-10*dist)
                 potential += (1/math.pow(core_elem_weight_mod,2))*(phi*core_element_filter.weights[j])
             i+=1
             core_elem_weight_mod+=1

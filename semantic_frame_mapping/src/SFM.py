@@ -501,7 +501,7 @@ if __name__ == '__main__':
     rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(experiment_config['title']))
     
     
-    r = rospy.Rate(1)
+    r = rospy.Rate(1000)
     i = 0
     while not rospy.is_shutdown():
         # if i < 20:
