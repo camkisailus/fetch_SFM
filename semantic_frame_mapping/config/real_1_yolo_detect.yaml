@@ -4,10 +4,10 @@ title: "real_1_yolo"
 description: ""
 regions:
   - name: "lab"
-    min_x: -10.0
-    max_x: 10.0
+    min_x: -3.0
+    max_x: 6.0
     min_y: -10.0
-    max_y: 10.0
+    max_y: 3.0
     min_z: 0.5
     max_z: 2
 objects:
@@ -15,14 +15,14 @@ objects:
     priors:
       - name: "lab"
         weight: 1.0
-  - name: "sugar_box"
-    priors:
-      - name: "lab"
-        weight: 1.0
   - name: "master_chef_can"
     priors:
       - name: "lab"
         weight: 1.0 
+  # - name: "sugar_box"
+  #   priors:
+  #     - name: "lab"
+  #       weight: 1.0
   - name: "mug"
     priors:
       - name: "lab"
@@ -30,6 +30,8 @@ objects:
 frames:
   - "grasp_master_chef_can"
   - "grasp_cracker_box"
+  - "grasp_mug"
+  - "make_coffee"
   # - "pour_coffee_mug"
   # - "make_coffee"
   #- "grasp_cup"

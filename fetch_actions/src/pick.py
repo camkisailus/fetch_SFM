@@ -46,6 +46,7 @@ class GraspClient:
             result = self.gloc_client.get_result()
             rospy.loginfo("PICK_NODE: Got result from gloc_!")
             self.update_scene()
+            
             # rospy.sleep(3)
             # self.send_grasps(result.graspable_points.poses)
             # rospy.loginfo("PICK_NODE: Done!")

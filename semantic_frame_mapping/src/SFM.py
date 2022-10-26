@@ -6,7 +6,7 @@ from particle_filters import *
 from utils import *
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Point, PoseWithCovarianceStamped, Pose
-from std_msgs.msg import String
+from std_msgs.msg import String, Int8
 from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal
 
 class State():
@@ -67,13 +67,17 @@ class Region():
 class ActionClient():
     def __init__(self):
         self.move_base_client = actionlib.SimpleActionClient("kisailus_move_base", MoveBaseRequestAction)
-        self.torso_client = actionlib.SimpleActionClient("kisailus_torso_controller", TorsoControlRequestAction)
-        self.point_head_client = actionlib.SimpleActionClient("kisailus_point_head", PointHeadRequestAction)
+        self.move_base_client.wait_for_server()
+        rospy.logwarn("Connected to move_base server")
+        # self.torso_client = actionlib.SimpleActionClient("kisailus_torso_controller", TorsoControlRequestAction)
+        # self.point_head_client = actionlib.SimpleActionClient("kisailus_point_head", PointHeadRequestAction)
         self.pick_client = actionlib.SimpleActionClient("kisailus_pick", PickRequestAction)
-        self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
-        self.point_head_pub = rospy.Publisher('/point_head/at', Point, queue_size=10)
-        self.cur_pose_sub = rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.pose_cb)
-        self.cur_pose = Pose()
+        self.pick_client.wait_for_server()
+        rospy.logwarn("Connected to pick server")
+        # self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
+        # self.point_head_pub = rospy.Publisher('/point_head/at', Point, queue_size=10)
+        # self.cur_pose_sub = rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.pose_cb)
+        # self.cur_pose = Pose()
 
     def pose_cb(self, pose_msg):
         self.cur_pose = pose_msg.pose.pose
@@ -110,7 +114,8 @@ class ActionClient():
         if mode == 1:
             assert(goal is not None)
             request.pick_pose = goal
-        request.mode = mode
+        request.mode = int(mode)
+        request.pick_pose = goal
         self.pick_client.send_goal(request)
         rospy.loginfo("Sent pick_client goal")
         self.pick_client.wait_for_result()
@@ -120,7 +125,7 @@ class ActionClient():
 class SFMClient():
     def __init__(self, experiment_config=None):
         # Experiment-specific stuff
-        self.ac = ActionClient()
+        # self.ac = ActionClient()
         self.neg_regions = set()
         self.regions = {}
         self.experiment_config = experiment_config
@@ -146,11 +151,13 @@ class SFMClient():
             priors = {}
             for prior in object['priors']:
                 priors[self.regions[prior['name']]] = float(prior['weight'])
-            self.object_filters[object['name']] = ObjectParticleFilter(20, valid_regions=priors, label=name)
+            self.object_filters[object['name']] = ObjectParticleFilter(100, valid_regions=priors, label=name)
+            self.object_filters[object['name']].publish()
 
         self.frame_filters = {}
         for _, frame in enumerate(self.kb):
             filter = FrameParticleFilter(100, frame.name, frame.preconditions, frame.core_frame_elements)
+            filter.publish()
             for cfe in frame.core_frame_elements:
                 filter.add_frame_element(self.object_filters[cfe], cfe)
             self.frame_filters[frame.name] = filter
@@ -163,6 +170,7 @@ class SFMClient():
         # ROS subscribers
         self.start_exp_sub = rospy.Subscriber("/start_experiment", String, self.run)
         self.execute_frame_sub = rospy.Subscriber("/execute", String, self.execute_frame)
+        self.update_filters_sub = rospy.Subscriber("/update_filters", Int8, self.update_filters)
         
 
 
@@ -184,7 +192,12 @@ class SFMClient():
         #     except AttributeError:
         #         print("No preconditions!")
         
-
+    def update_filters(self, msg):
+        rospy.logwarn("Updating Filters")
+        for _ in range(msg.data*10):
+            self.update_filters()
+        rospy.logwarn("Done updating filters")
+        
     def publish_regions(self):
         for region in self.regions.values():
             region.publish()
@@ -437,13 +450,58 @@ class SFMClient():
 
 if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
+    """
+    ac = ActionClient()
+    # siny_cosp = 2 * (0.832 * -0.490778743358)
+    # cosy_cosp = 1 - 2*(-0.490778743358**2)
+    # t = np.arctan2(siny_cosp, cosy_cosp) - 0.6
+    
+    # ac.go_to(-5.988, -33.000, -2.657)
+    # ready_pose = Pose()
+    # ready_pose.position.x = 0.388766448993
+    # ready_pose.position.y = 0.378542124739
+    # ready_pose.position.z = 1.04805824777
+    # ready_pose.orientation.x = -0.0978119668855
+    # ready_pose.orientation.y = 0.586970796926
+    # ready_pose.orientation.z = 0.0532830679297
+    # ready_pose.orientation.w = 0.801909606727
+    # ac.pick(mode=0,goal=ready_pose)
+    # pre_grasp_pose = Pose()
+    # pre_grasp_pose.position.x = 0.706376829351
+    # pre_grasp_pose.position.y = 0.327823473247
+    # pre_grasp_pose.position.z = 0.942892063785
+    # pre_grasp_pose.orientation.x = -0.000825113383771
+    # pre_grasp_pose.orientation.y = 0.0465757301487
+    # pre_grasp_pose.orientation.z = -0.598691337224
+    # pre_grasp_pose.orientation.w = 0.799624101239
+    # ac.pick(mode=0, goal=pre_grasp_pose)
+    # grasp_pose = Pose()
+    # grasp_pose.position.x = 0.730670415859
+    # grasp_pose.position.y = 0.0817700400619
+    # grasp_pose.position.z = 0.944080491806
+    # grasp_pose.orientation.x = -0.0586105500584
+    # grasp_pose.orientation.y = -0.00751916695798
+    # grasp_pose.orientation.z = -0.618539099892
+    # grasp_pose.orientation.w = 0.783528970399
+    # ac.pick(mode=1, goal=grasp_pose)
+    drop_pose = Pose()
+    drop_pose.position.x = 0.742431761974
+    drop_pose.position.y = 0.166189923673
+    drop_pose.position.z = 1.211409257298
+    drop_pose.orientation.x = 0.0964181423434
+    drop_pose.orientation.y = 0.0668233573068
+    drop_pose.orientation.z = -0.600939682408
+    drop_pose.orientation.w = 0.790638778996
+    ac.pick(mode=0, goal=drop_pose)
+    """
+
     with open(rospy.get_param("~experiment_config"), 'r') as file:
         experiment_config = yaml.safe_load(file)
     foo = SFMClient(experiment_config)
     rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(experiment_config['title']))
     
     
-    r = rospy.Rate(10)
+    r = rospy.Rate(1)
     i = 0
     while not rospy.is_shutdown():
         # if i < 20:
@@ -452,7 +510,7 @@ if __name__ == '__main__':
         #     #     foo.go_to()
         #     # rospy.loginfo("Updating...")
         foo.update_filters()
-        #     foo.publish_regions()
+        foo.publish_regions()
         #     # print(foo.state.action_history)
         #     # rospy.loginfo(i)
         #     # if i == 10:
