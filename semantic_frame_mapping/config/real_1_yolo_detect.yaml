@@ -1,0 +1,54 @@
+# Experiment Setup
+
+title: "real_1_yolo"
+description: ""
+regions:
+  - name: "lab"
+    min_x: -10.0
+    max_x: 10.0
+    min_y: -10.0
+    max_y: 10.0
+    min_z: 0.5
+    max_z: 2
+objects:
+  - name: "cracker_box"
+    priors:
+      - name: "lab"
+        weight: 1.0
+  - name: "sugar_box"
+    priors:
+      - name: "lab"
+        weight: 1.0
+  - name: "master_chef_can"
+    priors:
+      - name: "lab"
+        weight: 1.0 
+  - name: "mug"
+    priors:
+      - name: "lab"
+        weight: 1.0
+frames:
+  - "grasp_master_chef_can"
+  - "grasp_cracker_box"
+  # - "pour_coffee_mug"
+  # - "make_coffee"
+  #- "grasp_cup"
+  #- "grasp_spoon"
+  # - "pour_bowl"
+  # - "stir_bowl"
+  #- "stir_cup"
+# observations:
+#   - name: "spoon"
+#     x: 6.5
+#     y: 2
+#     z: 0.7
+#   - name: "cup"
+#     x: 7
+#     y: -3
+#     z: 0.8
+  # - name: "bowl"
+  #   x: 8
+  #   y: -1
+  #   z: 0.8
+action_history:
+  - "idle"

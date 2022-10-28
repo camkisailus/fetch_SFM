@@ -1,0 +1,13 @@
+# semantic frame
+# grasp_cup_sf.yaml 
+
+name: make_coffee
+description: grasp master chef can, pour into mug #grasp sugar, pour into mug 
+frame_elements:
+  - name: master_chef_can
+    is_core: True
+  - name: mug
+    is_core: True
+preconditions:
+  - name: grasp_master_chef_can
+  - name: pour_coffee_mug
