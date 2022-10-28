@@ -2,6 +2,8 @@
 
 from random import gauss, random
 
+from torch import int64
+
 import rospy
 import numpy as np
 import copy
@@ -19,8 +21,8 @@ from threading import RLock
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Pose, PointStamped
 from std_msgs.msg import Bool
-from semantic_frame_mapping.msg import ObjectDetection
-from apriltag_ros.msg import AprilTagDetectionArray
+from semantic_frame_mapping.msg import ObjectDetection, ObjectDetectionArray
+# from apriltag_ros.msg import AprilTagDetectionArray
 
 
 
@@ -65,7 +67,7 @@ class StaticObject(object):
 class ParticleFilter(object):
     def __init__(self, n, label, valid_regions):
         self.n = n
-        self.Sigma = np.array([[0.02, 0, 0], [0, 0.02, 0], [0, 0, 0.0]])
+        self.Sigma = np.array([[0.02, 0, 0], [0, 0.02, 0], [0, 0, 0.02]])
         self.particles = np.zeros([n,3])
         self.weights = 1.0/self.n * np.ones([n])
         self.valid_regions = {}
@@ -101,11 +103,11 @@ class ParticleFilter(object):
     def reinvigorate(self, particle, valid_region=False):
         # if self.valid_regions is None:
             # Random resample in entire map
-        particle[0] = np.random.uniform(-9, 9)
+        particle[0] = np.random.uniform(-2, 5)
         # -9 + np.random.random()*10
-        particle[1] = np.random.uniform(-6, 6)
+        particle[1] = np.random.uniform(-10, 3)
         # -5 + np.random.random()*6
-        particle[2] = 0# np.random.uniform(0, 3)
+        particle[2] = np.random.uniform(0, 1.5)
         # np.random.random()*2
         # else:
         #     # Random resample in a valid region
@@ -120,6 +122,44 @@ class ParticleFilter(object):
         #             particle[2] = min_z + np.random.random()*(max_z - min_z)
         #             # self.reinvigoration_idx+=1                   
         return particle
+    
+    def kisailus_resample(self):
+        temp_w = copy.deepcopy(self.weights)
+        temp_p = copy.deepcopy(self.particles)
+        idx = np.arange(0, self.n)
+        samples = np.random.choice(idx, int(self.n*0.8), replace=True, p=temp_w)
+        for i in range(len(samples)):
+            self.particles[i] = temp_p[samples[i]]
+        for j in range(len(samples), self.n-2):
+            self.particles[j] = self.reinvigorate(self.particles[j])
+        # highest weighted particles
+        self.particles[-2, :] = temp_p[np.argmax(temp_w)]
+        self.particles[-1, :] = self.jitter(temp_p[np.argmax(temp_w)])
+        # print(self.particles.shape)
+
+        # weights_sorted = sorted(temp_w)
+        # print(weights_sorted)
+        # num_resample = int(self.n*0.8)
+        # count = 0
+        # for i in range(num_resample):
+        #     c = np.random.rand()
+        #     idx = 0
+        #     w = None
+        #     while c > weights_sorted[idx]:
+        #         # pick which weight to resample
+        #         idx+=1
+        #     w = weights_sorted[idx]
+        #     p_idx = np.where(temp_w == w)[0][0]
+        #     self.particles[i] = self.jitter(temp_p[p_idx])
+        #     count += 1
+        # while count < self.n:
+        #     self.particles[i] = self.reinvigorate(self.particles[i])
+        
+
+
+            # find which particle has that weight
+
+            
 
     def systematic_resample(self):
         """ Performs the systemic resampling algorithm used by particle filters.
@@ -140,6 +180,7 @@ class ParticleFilter(object):
             array of indexes into the weights defining the resample. i.e. the
             index of the zeroth resample is indexes[0], etc.
         """
+        temp_p = copy.deepcopy(self.particles)
         N = len(self.weights)
 
         # make N subdivisions, and choose positions with a consistent random offset
@@ -154,6 +195,14 @@ class ParticleFilter(object):
                 i += 1
             else:
                 j += 1
+        k = 0
+        while k < self.n*0.8:
+            self.particles[k] = self.jitter(temp_p[indexes[k%len(indexes)]])
+            self.weights[k] = 1/self.n
+            k += 1
+        while k < self.n:
+            self.particles[k] = self.reinvigorate(temp_p[k])
+            k += 1
         return indexes
 
     def resample(self):
@@ -172,7 +221,7 @@ class ParticleFilter(object):
         #     if particles_added > self.n*0.9:
         #         break
         # for i in range(particles_added, self.n):
-        #     temp_p[i] = self.reinvigorate()
+        #     temp_p[i] = self.reinvigorate(temp_p[i])
         # self.particles = copy.deepcopy(temp_p)
         # self.weights = 1/self.n * np.ones([self.n])
 
@@ -208,10 +257,10 @@ class ParticleFilter(object):
     def jitter(self, particle):
         x_noise = np.random.normal(0, self.Sigma[0,0])
         y_noise = np.random.normal(0, self.Sigma[1,1])
-        # z_noise = np.random.normal(0, self.Sigma[2,2])
+        z_noise = np.random.normal(0, self.Sigma[2,2])
         particle[0] += x_noise
         particle[1] += y_noise
-        # particle[2] += z_noise
+        particle[2] += z_noise
         return particle
 
     def update_filter(self):
@@ -236,52 +285,71 @@ class ParticleFilter(object):
             marker = Marker()
             marker.id = i
             marker.header.frame_id = 'map'
-            if self.label == 'cup':
+            if self.label == 'mug':
                 # red cube
-                marker.color.r = 1
+                marker.color.g = 1
                 marker.type = marker.CUBE
-            elif self.label == 'spoon':
+            elif self.label == 'master_chef_can':
                 # blue cube
                 marker.color.b = 1
                 marker.type = marker.CUBE
-            elif self.label == 'bowl':
+            elif self.label == 'cracker_box':
                 # green cube
+                marker.color.r = 1
+                marker.type = marker.CUBE
+            elif self.label == 'sugar_box':
+                # purple cube
+                marker.color.r = 1
+                marker.color.b = 1
+                marker.type = marker.CUBE
+            elif self.label == 'mustard_bottle':
+                marker.color.r = 1
                 marker.color.g = 1
                 marker.type = marker.CUBE
-            elif self.label == 'grasp_cup':
+            elif self.label == 'grasp_mustard_bottle':
+                marker.color.r = 1
+                marker.color.g = 1
+                marker.type = marker.SPHERE
+            elif self.label == 'grasp_master_chef_can':
                 # red sphere
-                marker.color.r = 1
-                marker.type = marker.SPHERE
-            elif self.label == 'grasp_spoon':
-                # blue sphere
                 marker.color.b = 1
                 marker.type = marker.SPHERE
-            elif self.label == 'grasp_bowl':
+            elif self.label == 'grasp_mug':
+                marker.color.g = 1
+                marker.type = marker.SPHERE
+            # elif self.label == 'pour_coffee_mug':
+            #     # blue sphere
+            #     marker.color.b = 1
+            #     marker.type = marker.SPHERE
+            elif self.label == 'make_coffee':
                 # green sphere
-                marker.color.g = 1
-                marker.type = marker.SPHERE
-            elif self.label == 'pour_bowl':
                 marker.color.r = 1
-                marker.color.g = 1
+                marker.color.b = 1
+                marker.type = marker.SPHERE
+            elif self.label == 'grasp_cracker_box':
+                marker.color.r = 1
+                # marker.color.g = 1
                 marker.type = marker.SPHERE  
-            elif self.label == 'stir_bowl':
-                marker.color.b = 1
-                marker.color.g = 1
-                marker.type = marker.SPHERE
-            elif self.label == 'stir_cup':
-                marker.color.b = 1
-                marker.color.r = 1
-                marker.type = marker.SPHERE
+            # elif self.label == 'stir_bowl':
+            #     marker.color.b = 1
+            #     marker.color.g = 1
+            #     marker.type = marker.SPHERE
+            # elif self.label == 'stir_cup':
+            #     marker.color.b = 1
+            #     marker.color.r = 1
+            #     marker.type = marker.SPHERE
                     
             
             marker.action = marker.ADD
             # marker.lifetime = rospy.Duration(10)
-            marker.scale.x = 0.2
-            marker.scale.y = 0.2
-            marker.scale.z = 0.2
+            marker.scale.x = 0.1
+            marker.scale.y = 0.1
+            marker.scale.z = 0.1
+            # marker.color.a = 1 if self.weights[i] == max_weight else 0
             a = min(round((self.weights[i] - min_weight) / (max_weight - min_weight), 2) + 0.45, 1.0)
+            marker.color.a = a
             if a < 0.6:
-                marker.color.a = 0
+                marker.color.a = 0.1
             else:
                 marker.color.a = a
             # marker.color.a = 0.7
@@ -303,9 +371,9 @@ class ParticleFilter(object):
 class ObjectParticleFilter(ParticleFilter):
     def __init__(self, n, valid_regions, label):
         super(ObjectParticleFilter, self).__init__(n, label, valid_regions)
-        self.ar_to_obj_map = {0: 'mug', 1:'elevator_button'}
-        self.observation_sub = rospy.Subscriber('scene/observations', ObjectDetection, self.add_observation, queue_size=1)
-        self.apriltag_sub = rospy.Subscriber('tag_detections', AprilTagDetectionArray, self.handle_ar_detection, queue_size=1)
+        # self.ar_to_obj_map = {0: 'mug', 1:'elevator_button'}
+        self.observation_sub = rospy.Subscriber('scene/observations', ObjectDetectionArray, self.add_observation, queue_size=1)
+        # self.apriltag_sub = rospy.Subscriber('tag_detections', AprilTagDetectionArray, self.handle_ar_detection, queue_size=1)
         
         self.marker_pub = rospy.Publisher('filter/particles/{}'.format(label), MarkerArray, queue_size=10)
         self.observations = []
@@ -350,11 +418,19 @@ class ObjectParticleFilter(ParticleFilter):
     def add_observation_from_config(self, x, y, z):
         self.observations.append(StaticObject(self.label, x, y, z))
 
-    def add_observation(self, observation):
-        if observation.label == self.label:
-            rospy.loginfo("{}_pf: Received observation at ({}, {}, {})".format(self.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z))
-            obj = StaticObject(observation.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z)
-            self.observations.append(obj)
+    def add_observation(self, msg):
+        # TODO: Isaac make sure multiple instances are handled correctly.
+        for observation in msg.detections:
+            if observation.label == self.label:
+                new_obs = True
+                for obs in self.observations:
+                    if obs.label == observation.label:
+                        obs.update_position(observation.pose.position.x, observation.pose.position.y, observation.pose.position.z)
+                        new_obs = False
+                if new_obs:
+                    rospy.loginfo("{}_pf: Received NEW observation at ({}, {}, {})".format(self.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z))
+                    obj = StaticObject(observation.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z)
+                    self.observations.append(obj)
     
     
     def assign_weight(self, particle):
@@ -363,12 +439,12 @@ class ObjectParticleFilter(ParticleFilter):
             if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
                 return 0
         region_weight = 1e-3
-        for region, weight in self.valid_regions.items():
-            min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
-            if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
-                # rospy.logwarn("Particle in region {}".format(i))
-                region_weight = weight
-                break
+        # for region, weight in self.valid_regions.items():
+        #     min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
+        #     if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
+        #         # rospy.logwarn("Particle in region {}".format(i))
+        #         region_weight = weight
+        #         break
         if len(self.observations) == 0:
             return 1 * region_weight
         
@@ -377,7 +453,8 @@ class ObjectParticleFilter(ParticleFilter):
             err_y = particle[1] - observation.y
             err_z = particle[2] - observation.z
             dist = math.sqrt(err_x**2 + err_y**2 + err_z**2)
-            phi = math.exp(-100 * dist)
+            # was -100*dist
+            phi = math.exp(-5 * dist)
             if i == 0:
                 max_phi = phi
             else:
@@ -430,13 +507,13 @@ class ObjectParticleFilter(ParticleFilter):
 
 
     def update_filter(self):
-        count = 0
+        # count = 0
         self.resample()
         for k in range(self.n):
             self.particles[k, :]= self.jitter(self.particles[k, :])
             weight = self.assign_weight(self.particles[k, :])
-            if weight == 0:
-                count+=1
+            # if weight == 0:
+            #     count+=1
             self.weights[k] = weight
         # rospy.logwarn("{} had {} particles w 0 weight".format(self.label, count))
         self.weights = self.weights / np.sum(self.weights)
@@ -457,8 +534,8 @@ class FrameParticleFilter(ParticleFilter):
             self.preconditions = None
         
     def publish(self, gauss_only=False):
-        if not gauss_only:
-            super(FrameParticleFilter, self).publish()
+        # if not gauss_only:
+        super(FrameParticleFilter, self).publish()
         arr = MarkerArray()
         means, covs, weights = self.bgmm()
         max_idx = np.argmax(weights)
@@ -502,7 +579,7 @@ class FrameParticleFilter(ParticleFilter):
             marker.scale.y = eigValues[1]*2
             marker.scale.z = eigValues[2]*2
             foo = np.sqrt(marker.scale.x**2 + marker.scale.y**2 + marker.scale.z**2)
-            if  foo > 20:
+            if  foo > 5:
                 break
             # rospy.logwarn("{} gauss # {} scale is: {}".format(self.label, count, foo))
 
@@ -523,27 +600,27 @@ class FrameParticleFilter(ParticleFilter):
                 # green cube
                 marker.color.g = 1
 
-            elif self.label == 'grasp_cup':
+            elif self.label == 'grasp_master_chef_can':
                 # red sphere
-                marker.color.r = 1
+                marker.color.b = 1
 
             elif self.label == 'grasp_spoon':
                 # blue sphere
                 marker.color.b = 1
 
-            elif self.label == 'grasp_bowl':
+            elif self.label == 'grasp_mug':
                 # green sphere
                 marker.color.g = 1
  
-            elif self.label == 'pour_bowl':
+            elif self.label == 'grasp_cracker_box':
                 marker.color.r = 1
-                marker.color.g = 1
+                # marker.color.g = 1
  
             elif self.label == 'stir_bowl':
                 marker.color.b = 1
                 marker.color.g = 1
 
-            elif self.label == 'stir_cup':
+            elif self.label == 'make_coffee':
                 marker.color.b = 1
                 marker.color.r = 1
             # marker.lifetime = rospy.Duration(10)
@@ -587,7 +664,7 @@ class FrameParticleFilter(ParticleFilter):
                 for j in range(subtask_filter.n):
                     other_particle = subtask_filter.particles[j, :]
                     dist = np.sqrt((other_particle[0]-particle[0])**2 + (other_particle[1]-particle[1])**2 + (other_particle[2]-particle[2])**2)
-                    phi = math.exp(-5*dist)
+                    phi = math.exp(-10*dist)
                     potential += (phi*subtask_filter.weights[j])
                 i+=1
             return potential
@@ -595,7 +672,6 @@ class FrameParticleFilter(ParticleFilter):
             return 1
     
     def measurement_potential(self, particle, state):
-        # determine state wrt preconditions
         i = 0
         if self.preconditions:
             for precondition in self.preconditions:
@@ -610,7 +686,7 @@ class FrameParticleFilter(ParticleFilter):
             for j in range(core_element_filter.n):
                 other_particle = core_element_filter.particles[j, :]
                 dist = np.sqrt((other_particle[0]-particle[0])**2 + (other_particle[1]-particle[1])**2 + (other_particle[2]-particle[2])**2)
-                phi = math.exp(-5*dist)
+                phi = math.exp(-10*dist)
                 potential += (1/math.pow(core_elem_weight_mod,2))*(phi*core_element_filter.weights[j])
             i+=1
             core_elem_weight_mod+=1
@@ -623,7 +699,9 @@ class FrameParticleFilter(ParticleFilter):
     
     def update_filter(self, state):
         with self.lock:
-            self.resample()
+            self.kisailus_resample()
+            # self.systematic_resample()
+            # self.resample()
             for k in range(self.n):
                 self.particles[k, :] = self.jitter(self.particles[k,:])
                 self.weights[k] = self.assign_weight(self.particles[k,:], state)

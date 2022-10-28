@@ -1,4 +1,4 @@
-#! /usr/bin/python
+#! /usr/bin/python3
 
 import rospy
 import sys
@@ -46,11 +46,12 @@ class GraspClient:
             result = self.gloc_client.get_result()
             rospy.loginfo("PICK_NODE: Got result from gloc_!")
             self.update_scene()
-            rospy.sleep(3)
-            self.send_grasps(result.graspable_points.poses)
-            rospy.loginfo("PICK_NODE: Done!")
-            # # self.pour()
-            self.place()
+            
+            # rospy.sleep(3)
+            # self.send_grasps(result.graspable_points.poses)
+            # rospy.loginfo("PICK_NODE: Done!")
+            # # # self.pour()
+            # self.place()
 
         # self.push_elevator(request.pose)        
         self.request_server.set_succeeded()

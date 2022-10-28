@@ -1,5 +1,9 @@
 <launch>
-    <include file="$(find fetch_actions)/launch/main.launch"/>
-    <include file="$(find grasploc_wrapper)/launch/grasploc_node.launch"/>
-    <include file="$(find semantic_frame_mapping)/launch/semantic_frame_mapping.launch"/>
+    <arg name="experiment_config" default=""/>
+    <!-- <include file="$(find fetch_actions)/launch/main.launch"/> -->
+    <!--<include file="$(find grasploc_wrapper)/launch/grasploc_node.launch"/> -->
+    <!-- <include file="$(find perception)/launch/yolo_detector.launch"/> -->
+    <include file="$(find semantic_frame_mapping)/launch/semantic_frame_mapping.launch">
+        <arg name="experiment_config" value="$(arg experiment_config)"/>
+    </include>
 </launch>

@@ -10,4 +10,8 @@ frame_elements:
     is_core: True
 preconditions:
   - name: grasp_master_chef_can
+<<<<<<< HEAD
   - name: pour_coffee_mug
+=======
+  # - name: pour_coffee_mug
+>>>>>>> 3a0474416a43a2f3c34b48486b7fbd8d830c1528

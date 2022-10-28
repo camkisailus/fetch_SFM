@@ -1,0 +1,12 @@
+# semantic frame
+# grasp_spoon_sf.yaml
+
+name: grasp_mustard_bottle
+description: grasp the mustard bottle
+frame_elements:
+  - name: mustard_bottle
+    is_core: True
+  - name: object_compound_modifier
+    is_core: False
+  - name: object_adjective_modifier
+    is_core: False
