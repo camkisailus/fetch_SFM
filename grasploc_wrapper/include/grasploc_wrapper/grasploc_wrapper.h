@@ -3,6 +3,7 @@
 
 #include "grasploc.h"
 #include "grasploc_wrapper_msgs/GrasplocAction.h"
+#include "grasploc_wrapper_msgs/CropBoxDims.h"
 #include "ros/ros.h"
 #include "sensor_msgs/PointCloud2.h"
 #include "pcl/point_types.h"
@@ -29,6 +30,7 @@ class GrasplocWrapper {
   ros::Rate* loop_rate_;
   actionlib::SimpleActionServer<grasploc_wrapper_msgs::GrasplocAction> grasploc_as_;
   boost::shared_ptr<Grasploc::GraspablePoints> current_grasp_points_;
+  ros::Subscriber update_cb_dims_;
 
   // Visualization
   bool visualize_;
@@ -37,6 +39,7 @@ class GrasplocWrapper {
 
  public:
   GrasplocWrapper();
+  void Update_Cropbox(const grasploc_wrapper_msgs::CropBoxDimsConstPtr& msg);
   void GetGraspablePoints(const grasploc_wrapper_msgs::GrasplocGoalConstPtr& goal);
   void Run();
   ~GrasplocWrapper();

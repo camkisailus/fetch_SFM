@@ -9,6 +9,7 @@ from fetch_actions.msg import MoveBaseRequestAction
 
 class MoveBase(object):
     def __init__(self):
+        
         self.server = actionlib.SimpleActionServer("kisailus_move_base", MoveBaseRequestAction, self.request_callback, auto_start=False)
         self.server.start()
         self.client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
@@ -30,6 +31,7 @@ class MoveBase(object):
 
 
     def go_to(self, x, y, theta, frame='map'):
+
         move_goal = MoveBaseGoal()
         move_goal.target_pose.pose.position.x = x
         move_goal.target_pose.pose.position.y = y

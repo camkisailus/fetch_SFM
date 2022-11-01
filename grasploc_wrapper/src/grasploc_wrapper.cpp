@@ -1,4 +1,5 @@
 #include "grasploc_wrapper/grasploc_wrapper.h"
+#include <ros/console.h>
 
 GrasplocWrapper::GrasplocWrapper()
   : loop_rate_(NULL)
@@ -66,9 +67,21 @@ GrasplocWrapper::GrasplocWrapper()
 
   // Setup loop rate
   loop_rate_ = new ros::Rate(kLoopRate);
-
+  update_cb_dims_ = nh_.subscribe("/kisailus/update_cb", 1000, &GrasplocWrapper::Update_Cropbox, this);
+  // ros::Subscriber cropbox_dim_sub = private_nh.subscribe("/kisailus/update_cb_dims", )
   // Start action server
   grasploc_as_.start();
+}
+
+void GrasplocWrapper::Update_Cropbox(const grasploc_wrapper_msgs::CropBoxDimsConstPtr& msg)
+{
+  gloc_.SetCropBox(msg->x_max, msg->x_min, msg->y_max, msg->y_min, msg->z_max, msg->z_min);
+  ROS_WARN("New x_min %f", msg->x_min);
+  ROS_WARN("New x_max %f", msg->x_max);
+  ROS_WARN("New y_min %f", msg->y_min);
+  ROS_WARN("New y_max %f", msg->y_max);
+  ROS_WARN("New z_min %f", msg->z_min);
+  ROS_WARN("New z_max %f", msg->z_max);
 }
 
 GrasplocWrapper::~GrasplocWrapper() {

@@ -1,5 +1,6 @@
 #include <grasploc.h>
 #include "grasploc.h"
+#include <ros/console.h>
 
 
 Grasploc::Grasploc(uint64_t num_samples, float neighborhood_radius,
@@ -166,8 +167,9 @@ boost::shared_ptr<Grasploc::GraspablePoints> Grasploc::Run(const GrasplocPC::Con
 
 
   int valid_points = 0;
-  std::cout << "CropBox:" << cbx_min << " " << cbx_max << " " << cby_min << " "
-            << cby_max << " " << cbz_min << " " << cbz_max << std::endl;
+  ROS_WARN("CropBox: %f, %f, %f, %f, %f, %f", cbx_min, cbx_max, cby_min, cby_max, cbz_min, cbz_max);
+  // std::cout << "CropBox:" << cbx_min << " " << cbx_max << " " << cby_min << " "
+  //           << cby_max << " " << cbz_min << " " << cbz_max << std::endl;
   for(int j = 0; j<pc->points.size();j++)
   {
       if (pc->points[j].x > cbx_min && pc->points[j].x < cbx_max &&

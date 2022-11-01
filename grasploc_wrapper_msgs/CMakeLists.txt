@@ -13,6 +13,12 @@ add_action_files(
   FILES Grasploc.action GrasplocRequest.action
 )
 
+
+add_message_files(
+  DIRECTORY msg
+  FILES CropBoxDims.msg GrasplocGrasps.msg
+  )
+  
 generate_messages(
   DEPENDENCIES
   sensor_msgs

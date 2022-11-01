@@ -8,6 +8,8 @@ from std_msgs.msg import Bool
 from geometry_msgs.msg import Point, PoseWithCovarianceStamped, Pose
 from std_msgs.msg import String, Int8
 from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal
+from nav_msgs.srv import GetPlan, GetPlanResponse
+from grasploc_wrapper_msgs.msg import GrasplocRequestAction, GrasplocRequestGoal
 
 class State():
     def __init__(self, action_history):
@@ -66,6 +68,8 @@ class Region():
 
 class ActionClient():
     def __init__(self):
+        self.make_plan_client = rospy.ServiceProxy('move_base/make_plan', GetPlan)
+
         self.move_base_client = actionlib.SimpleActionClient("kisailus_move_base", MoveBaseRequestAction)
         self.move_base_client.wait_for_server()
         rospy.logwarn("Connected to move_base server")
@@ -115,7 +119,7 @@ class ActionClient():
             assert(goal is not None)
             request.pick_pose = goal
         request.mode = int(mode)
-        request.pick_pose = goal
+        request.pick_pose = Pose()
         self.pick_client.send_goal(request)
         rospy.loginfo("Sent pick_client goal")
         self.pick_client.wait_for_result()
@@ -450,6 +454,17 @@ class SFMClient():
 
 if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
+    ac = ActionClient()
+    ac.pick()
+    # gloc_client = actionlib.SimpleActionClient('grasploc_requests', GrasplocRequestAction)
+    # gloc_client.wait_for_server()
+    # goal = GrasplocRequestGoal()
+    # goal.tmp = 0
+    # gloc_client.send_goal(goal)
+    # gloc_client.wait_for_result()
+    # result = gloc_client.get_result()
+    # print(result)
+
     """
     ac = ActionClient()
     # siny_cosp = 2 * (0.832 * -0.490778743358)
@@ -495,6 +510,9 @@ if __name__ == '__main__':
     ac.pick(mode=0, goal=drop_pose)
     """
 
+
+    """
+
     with open(rospy.get_param("~experiment_config"), 'r') as file:
         experiment_config = yaml.safe_load(file)
     foo = SFMClient(experiment_config)
@@ -517,3 +535,4 @@ if __name__ == '__main__':
         #     #     foo.frame_filters['grasp_bottle'].bgmm()
         #     i+=1
         r.sleep()
+    """

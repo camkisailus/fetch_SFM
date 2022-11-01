@@ -3,8 +3,8 @@
     <arg name="record_bag" default="false"/>
     <arg name="experiment_title" default=""/>
     <arg name="robot" default="fetch"/>
-    <arg name="gui" default="false"/>
-    <arg name="gazebo" default="false"/>
+    <arg name="gui" default="true"/>
+    <arg name="gazebo" default="true"/>
     <arg name="experiment_config" default="$(find semantic_frame_mapping)/config/$(arg experiment_title).yaml"/>
 
     <!-- Gazebo -->
@@ -22,14 +22,14 @@
     </include>
 
     <!-- Fetch Action server -->
-    <include if="$(arg gazebo)" file="$(find fetch_actions)/launch/main.launch"/>
+    <!-- <include if="$(arg gazebo)" file="$(find fetch_actions)/launch/main.launch"/> -->
     
     <node unless="$(arg gazebo)" name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" output="log"/>
     <!-- SFM Driver-->
-    <include file="$(find semantic_frame_mapping)/launch/semantic_frame_mapping.launch">
+    <!-- <include file="$(find semantic_frame_mapping)/launch/semantic_frame_mapping.launch">
         <arg name="experiment_config" value="$(arg experiment_config)"/>
         <arg name="record" value="$(arg record_bag)"/>
-    </include>
+    </include> -->
 
     <!-- RVIZ -->
     <node type="rviz" name="rviz" pkg="rviz" args="-d /home/cuhsailus/Desktop/Research/22_academic_year/fetch_sfm_ws/rviz_configs/iros_demo.rviz"/>
