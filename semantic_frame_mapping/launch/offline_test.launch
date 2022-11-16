@@ -8,31 +8,23 @@
     <arg name="experiment_config" default="$(find semantic_frame_mapping)/config/$(arg experiment_title).yaml"/>
 
     <!-- Gazebo -->
-    <include if="$(arg gazebo)" file="$(find aws_robomaker_small_house_world)/launch/small_house.launch">
+    <!-- <include if="$(arg gazebo)" file="$(find aws_robomaker_small_house_world)/launch/small_house.launch">
         <arg name="gui" value="$(arg gui)"/>
-    </include>
-
-    <!-- Fetch robot model in Gazebo -->
-    <include if="$(arg gazebo)" file="$(find fetch_gazebo)/launch/include/$(arg robot).launch.xml" />
-    <!-- Fetch navigation stack and map server-->
-    <include if="$(arg gazebo)" file="$(find fetch_navigation)/launch/fetch_nav.launch">
-        <arg name="map_file" value="$(arg map_file)"/>
-        <arg name="map_keepout_file" value="$(find aws_robomaker_small_house_world)/maps/small_house_no_trash_keepout_zones.yaml"/>
-        <arg name="use_keepout" value="true"/>
-    </include>
-
-    <!-- Fetch Action server -->
-    <!-- <include if="$(arg gazebo)" file="$(find fetch_actions)/launch/main.launch"/> -->
-    
-    <node unless="$(arg gazebo)" name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" output="log"/>
-    <!-- SFM Driver-->
-    <!-- <include file="$(find semantic_frame_mapping)/launch/semantic_frame_mapping.launch">
-        <arg name="experiment_config" value="$(arg experiment_config)"/>
-        <arg name="record" value="$(arg record_bag)"/>
     </include> -->
 
-    <!-- RVIZ -->
-    <node type="rviz" name="rviz" pkg="rviz" args="-d /home/cuhsailus/Desktop/Research/22_academic_year/fetch_sfm_ws/rviz_configs/iros_demo.rviz"/>
+    <!-- Fetch robot model in Gazebo -->
+    <!-- <include if="$(arg gazebo)" file="$(find fetch_gazebo)/launch/include/$(arg robot).launch.xml"/> -->
+    
+
+    <!-- <node unless="$(arg gazebo)" name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" output="log"/> -->
+    <!-- Fetch Action server -->
+    <!-- <include if="$(arg gazebo)" file="$(find fetch_actions)/launch/main.launch"/> -->
+     
+    <!-- SFM Driver-->
+    <include file="$(find semantic_frame_mapping)/launch/semantic_frame_mapping.launch">
+        <arg name="experiment_config" value="$(arg experiment_config)"/>
+        <arg name="record" value="$(arg record_bag)"/>
+    </include>
 
     <!-- Record a bag -->
     <node if="$(arg record_bag)" 

@@ -151,8 +151,8 @@ class GraspClient:
             pos = JointTrajectoryPoint()
             pos.positions.append(0.0) # close grippers
             pos.positions.append(0.0)
-            pos.effort.append(0.0)
-            pos.effort.append(0.0)
+            pos.effort.append(1.0)
+            pos.effort.append(1.0)
             grasp.grasp_posture.points.append(pos)
 
             grasp.pre_grasp_approach.direction.header.frame_id = 'wrist_roll_link'

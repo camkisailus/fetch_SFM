@@ -103,9 +103,11 @@ class ParticleFilter(object):
     def reinvigorate(self, particle, valid_region=False):
         # if self.valid_regions is None:
             # Random resample in entire map
-        particle[0] = np.random.uniform(-2, 5)
+        #particle[0] = np.random.uniform(-2, 5)
+        particle[0] = np.random.uniform(-10, 9)
         # -9 + np.random.random()*10
-        particle[1] = np.random.uniform(-10, 3)
+        #particle[1] = np.random.uniform(-10, 3)
+        particle[1] = np.random.uniform(-6.5, 4.5)
         # -5 + np.random.random()*6
         particle[2] = np.random.uniform(0, 1.5)
         # np.random.random()*2
@@ -272,7 +274,6 @@ class ParticleFilter(object):
     
     def publish(self):
         marker_array = MarkerArray()
-        highest_weight = max(self.weights)
         max_weight = max(self.weights)
         min_weight = min(self.weights)
         # if self.label == 'grasp_cup' or self.label == 'grasp_spoon' or self.label == 'stir_cup':
@@ -297,7 +298,7 @@ class ParticleFilter(object):
                 # green cube
                 marker.color.r = 1
                 marker.type = marker.CUBE
-            elif self.label == 'sugar_box':
+            elif self.label == 'soup':
                 # purple cube
                 marker.color.r = 1
                 marker.color.b = 1
@@ -346,12 +347,15 @@ class ParticleFilter(object):
             marker.scale.y = 0.1
             marker.scale.z = 0.1
             # marker.color.a = 1 if self.weights[i] == max_weight else 0
-            a = min(round((self.weights[i] - min_weight) / (max_weight - min_weight), 2) + 0.45, 1.0)
-            marker.color.a = a
-            if a < 0.6:
-                marker.color.a = 0.1
+            if max_weight == min_weight:
+                marker.color.a = 0.8
             else:
+                a = min(round((self.weights[i] - min_weight) / (max_weight - min_weight), 2) + 0.45, 1.0)
                 marker.color.a = a
+                if a < 0.6:
+                    marker.color.a = 0.1
+                else:
+                    marker.color.a = a
             # marker.color.a = 0.7
             # if self.weights[i] <= float(highest_weight/4):
             #     marker.color.a = 0.25
@@ -398,6 +402,7 @@ class ObjectParticleFilter(ParticleFilter):
     
     def publish(self):
         super(ObjectParticleFilter, self).publish()
+        return
         for observation in self.observations:
             observation.publish()
 
@@ -439,12 +444,12 @@ class ObjectParticleFilter(ParticleFilter):
             if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
                 return 0
         region_weight = 1e-3
-        # for region, weight in self.valid_regions.items():
-        #     min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
-        #     if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
-        #         # rospy.logwarn("Particle in region {}".format(i))
-        #         region_weight = weight
-        #         break
+        for region, weight in self.valid_regions.items():
+            min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
+            if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
+                # rospy.logwarn("Particle in region {}".format(i))
+                region_weight = weight
+                break
         if len(self.observations) == 0:
             return 1 * region_weight
         
@@ -536,6 +541,7 @@ class FrameParticleFilter(ParticleFilter):
     def publish(self, gauss_only=False):
         # if not gauss_only:
         super(FrameParticleFilter, self).publish()
+        return
         arr = MarkerArray()
         means, covs, weights = self.bgmm()
         max_idx = np.argmax(weights)

@@ -1,0 +1,97 @@
+# Experiment Setup
+
+title: "iros_1"
+description: "Priors only. "
+regions:
+  - name: "dining_room"
+    min_x: 4.5
+    max_x: 8.5
+    min_y: -1.0
+    max_y: 1.5
+    min_z: 0
+    max_z: 1.5
+  - name: "kitchen"
+    min_x: 6.5
+    max_x: 9.0
+    min_y: -5.7
+    max_y: -2.0
+    min_z: 0.0
+    max_z: 1.5
+  - name: "bedroom"
+    min_x: -8.0
+    max_x: -3.5
+    min_y: -1.7
+    max_y: 0.0
+    min_z: 0.0
+    max_z: 1.5
+  - name: "living_room"
+    min_x: -2.0
+    max_x: 2.0
+    min_y: -4.5
+    max_y: -1.5
+    min_z: 0.0
+    max_z: 1.5
+  - name: "family_room"
+    min_x: -8.0
+    max_x: -3.5
+    min_y: -6.0
+    max_y: -3.5
+    min_z: 0.0
+    max_z: 1.5
+objects:
+  # - name: "demo_cube"
+  #   priors:
+  #     - name: kitchen
+  #       weight: 1.0
+  #   gt_loc:
+  #     x: 7.0
+  #     y: -4.88
+  #     z: 0.92
+  #     roll: 0
+  #     pitch: 0
+  #     yaw: 1.549571
+  - name: "cracker_box"
+    priors:
+      - name: kitchen
+        weight: 1.0
+    gt_loc:
+      x: 6.9
+      y: -4.95
+      z: 0.92
+      roll: 0
+      pitch: 0
+      yaw: 1.549571
+  # - name: "cracker_box"
+  #   priors:
+  #     - name: kitchen
+  #       weight: 1.0
+  #   gt_loc:
+  #     x: 20.0
+  #     y: 0.0
+  #     z: 0.0
+  #     roll: 0.0
+  #     pitch: 0.0
+  #     yaw: 0.0
+
+      # - name: bedroom
+      #   weight: 0.5
+  # - name: "spoon"
+  #   priors:
+  #     - name: kitchen
+  #       weight: 0.5
+  #     - name: bedroom
+  #       weight: 0.5
+# observations:
+#   - name: "cracker_box"
+#     x: 7.0
+#     y: -4.98
+#     z: 0.92
+frames:
+  # - "grasp_sugar_box"
+  # - "grasp_potted_meat_can"
+  - "grasp_cracker_box"
+  # - "grasp_spoon"
+  # - "stir_cup"
+action_history:
+  - "idle"
+

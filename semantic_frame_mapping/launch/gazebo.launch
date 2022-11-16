@@ -1,0 +1,19 @@
+<launch>
+
+    <env name="GAZEBO_MODEL_PATH" value="$(find fetch_gazebo)/models:$(optenv GAZEBO_MODEL_PATH)" />
+    <arg name="gui" default="true"/>
+
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="world_name" value="/home/cuhsailus/Desktop/Research/22_academic_year/fetch_sfm_ws/src/aws-robomaker-small-house-world/worlds/small_house_w_cheezit.world"/>
+        <!-- <arg name="world_name" value="$(find fetch_gazebo)/worlds/test_zone_pick_place.sdf"/> -->
+        <arg name="paused" default="false"/>
+        <arg name="use_sim_time" default="true"/>
+        <arg name="gui" default="$(arg gui)"/>
+        <arg name="headless" default="false"/>
+        <arg name="debug" default="false"/>
+        <arg name="verbose" default="false"/>
+    </include>
+
+    <include file="$(find fetch_gazebo)/launch/include/fetch.launch.xml"/>
+
+</launch>

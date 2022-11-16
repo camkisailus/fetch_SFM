@@ -5,11 +5,15 @@ import rospy
 from particle_filters import *
 from utils import *
 from std_msgs.msg import Bool
-from geometry_msgs.msg import Point, PoseWithCovarianceStamped, Pose
+from geometry_msgs.msg import Point, PoseWithCovarianceStamped, Pose, PoseStamped, Quaternion
 from std_msgs.msg import String, Int8
 from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal
 from nav_msgs.srv import GetPlan, GetPlanResponse
 from grasploc_wrapper_msgs.msg import GrasplocRequestAction, GrasplocRequestGoal
+from gazebo_msgs.srv import SetModelState, SetModelStateResponse
+from gazebo_msgs.srv import SpawnModel, SpawnModelResponse
+from gazebo_msgs.msg import ModelState
+# import tf
 
 class State():
     def __init__(self, action_history):
@@ -17,7 +21,7 @@ class State():
         self.ah_sub = rospy.Subscriber("/add_action_to_action_history", String, self.add_action_to_action_history)
         self.robot_pose_sub = rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.update_pose)
         self.pose = Pose()
-    
+
     def update_pose(self, pose_msg):
         self.pose = pose_msg.pose.pose
     
@@ -68,16 +72,22 @@ class Region():
 
 class ActionClient():
     def __init__(self):
-        self.make_plan_client = rospy.ServiceProxy('move_base/make_plan', GetPlan)
+        # self.make_plan_client = rospy.ServiceProxy('move_base/make_plan', GetPlan)
 
         self.move_base_client = actionlib.SimpleActionClient("kisailus_move_base", MoveBaseRequestAction)
         self.move_base_client.wait_for_server()
         rospy.logwarn("Connected to move_base server")
-        # self.torso_client = actionlib.SimpleActionClient("kisailus_torso_controller", TorsoControlRequestAction)
-        # self.point_head_client = actionlib.SimpleActionClient("kisailus_point_head", PointHeadRequestAction)
+        self.torso_client = actionlib.SimpleActionClient("kisailus_torso_controller", TorsoControlRequestAction)
+        self.torso_client.wait_for_server()
+        rospy.logwarn("Connected to torso client")
+        self.point_head_client = actionlib.SimpleActionClient("kisailus_point_head", PointHeadRequestAction)
+        self.point_head_client.wait_for_server()
+        rospy.logwarn("Connected to point head client")
         self.pick_client = actionlib.SimpleActionClient("kisailus_pick", PickRequestAction)
         self.pick_client.wait_for_server()
         rospy.logwarn("Connected to pick server")
+        # self.pick_sub = rospy.Subscriber("pick", Bool, self.pick_from_cmd)
+        # self.tf_listener = tf.TransformListener()
         # self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
         # self.point_head_pub = rospy.Publisher('/point_head/at', Point, queue_size=10)
         # self.cur_pose_sub = rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.pose_cb)
@@ -113,23 +123,40 @@ class ActionClient():
         self.point_head_client.send_goal(request)
         self.point_head_client.wait_for_result()
     
+    # def pick_from_cmd(self, msg):
+    #     self.pick(mode=0)
+    
     def pick(self, mode=0, goal=None):
         request = PickRequestGoal()
-        if mode == 1:
-            assert(goal is not None)
-            request.pick_pose = goal
-        request.mode = int(mode)
-        request.pick_pose = Pose()
+        request.mode = mode
+        if goal:
+           request.pick_pose = goal # this is particle loc in map frame
         self.pick_client.send_goal(request)
         rospy.loginfo("Sent pick_client goal")
         self.pick_client.wait_for_result()
+        res = self.pick_client.get_result()
+        return res
+
+        # request = PickRequestGoal()
+        # if mode == 1:
+        #     assert(goal is not None)
+        #     request.pick_pose = goal
+        # request.mode = int(mode)
+        # request.pick_pose = Pose()
+        # self.pick_client.send_goal(request)
+        # rospy.loginfo("Sent pick_client goal")
+        # self.pick_client.wait_for_result()
+    
+    # def tuck_arm(self):
+
         
     
     
 class SFMClient():
     def __init__(self, experiment_config=None):
         # Experiment-specific stuff
-        # self.ac = ActionClient()
+        self.update = True
+        self.ac = ActionClient()
         self.neg_regions = set()
         self.regions = {}
         self.experiment_config = experiment_config
@@ -174,7 +201,7 @@ class SFMClient():
         # ROS subscribers
         self.start_exp_sub = rospy.Subscriber("/start_experiment", String, self.run)
         self.execute_frame_sub = rospy.Subscriber("/execute", String, self.execute_frame)
-        self.update_filters_sub = rospy.Subscriber("/update_filters", Int8, self.update_filters)
+        # self.update_filters_sub = rospy.Subscriber("/update_filters", Int8, self.update_filters)
         
 
 
@@ -196,11 +223,11 @@ class SFMClient():
         #     except AttributeError:
         #         print("No preconditions!")
         
-    def update_filters(self, msg):
-        rospy.logwarn("Updating Filters")
-        for _ in range(msg.data*10):
-            self.update_filters()
-        rospy.logwarn("Done updating filters")
+    # def update_filters(self, msg):
+    #     rospy.logwarn("Updating Filters")
+    #     for _ in range(msg.data*10):
+    #         self.update_filters()
+    #     rospy.logwarn("Done updating filters")
         
     def publish_regions(self):
         for region in self.regions.values():
@@ -241,7 +268,7 @@ class SFMClient():
                 filter.add_negative_region(reg)
                 self.neg_regions.add(reg)
 
-    def run_observation_routine(self, frame=None):
+    def run_observation_routine(self):
         """
         This is a simulated object detection method
          
@@ -262,26 +289,26 @@ class SFMClient():
         for _, filter in self.object_filters.items():
             try:
                 for obs in self.experiment_config['observations']:
-                    rospy.logwarn("{} location is ({}, {})".format(obs['name'], obs['x'], obs['y']))
+                    # rospy.logwarn("{} location is ({}, {})".format(obs['name'], obs['x'], obs['y']))
                     # if obs['name'] != filter.label:
                     #     continue
                     x_err =  (obs['x'] - self.state.pose.position.x)**2
                     y_err = (obs['y'] - self.state.pose.position.y)**2
-                    if np.sqrt(x_err + y_err ) <= 1 and obs['name'] == filter.label:
-                        if frame == 'grasp_spoon' and filter.label == 'spoon':
-                        # simulate completed action
-                            rospy.logwarn("Successfully completed {}".format(frame))
-                            return True
-                        elif frame == 'stir_cup' and filter.label == 'cup':
-                            rospy.logwarn("Successfully completed {}".format(frame))
-                            return True
-                        elif frame == 'grasp_cup' and filter.label == 'cup':
-                            rospy.logwarn("Adding observation to {} dist to obj is {}".format(filter.label, np.sqrt(x_err+y_err)))
-                            filter.add_observation_from_config(obs['x'], obs['y'], obs['z'])
-                            pos_added.append(filter.label)
-                            # rospy.logwarn("Successfully completed {}".format(frame))
-                            # return True
-                    elif np.sqrt(x_err + y_err) < 5 and obs['name'] == filter.label:
+                    # if np.sqrt(x_err + y_err ) <= 1 and obs['name'] == filter.label:
+                    #     if frame == 'grasp_spoon' and filter.label == 'spoon':
+                    #     # simulate completed action
+                    #         rospy.logwarn("Successfully completed {}".format(frame))
+                    #         return True
+                    #     elif frame == 'stir_cup' and filter.label == 'cup':
+                    #         rospy.logwarn("Successfully completed {}".format(frame))
+                    #         return True
+                    #     elif frame == 'grasp_cup' and filter.label == 'cup':
+                    #         rospy.logwarn("Adding observation to {} dist to obj is {}".format(filter.label, np.sqrt(x_err+y_err)))
+                    #         filter.add_observation_from_config(obs['x'], obs['y'], obs['z'])
+                    #         pos_added.append(filter.label)
+                    #         # rospy.logwarn("Successfully completed {}".format(frame))
+                    #         # return True
+                    if np.sqrt(x_err + y_err) < 5 and obs['name'] == filter.label:
                         rospy.logwarn("Adding observation to {} dist to obj is {}".format(filter.label, np.sqrt(x_err+y_err)))
                         filter.add_observation_from_config(obs['x'], obs['y'], obs['z'])
                         pos_added.append(filter.label)
@@ -303,41 +330,94 @@ class SFMClient():
         return np.sqrt(x_dist**2 + y_dist**2)
 
     def execute_frame(self, frame_name):
-        if frame_name.data == 'grasp_master_chef_can':
-            rospy.logwarn("Got request to grasp master can")
-            rospy.logwarn("First going to look at the can")
-            # frame_bgmm = self.frame_filters['grasp_master_chef_can'].bgmm()
-            grasp_mcc = self.frame_filters[frame_name.data]
-            mcc_obj = grasp_mcc.frame_element_filters['master_chef_can']
-            mcc_det = mcc_obj.observations[0]
-            # pick_pose = Pose()
-            # pick_pose.position.x = mcc_det.x
-            # pick_pose.position.y = mcc_det.y + 0.02
-            # pick_pose.position.z = mcc_det.z
-            # rospy.logwarn("Sending pick location to picker")
-            # self.ac.pick(mode=1, goal=pick_pose)
+        self.update = False
+        if frame_name.data == 'make_coffee':
+            best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
+            self.ac.move_torso(0.4)
+            self.ac.point_head(best_particle[0], best_particle[1], best_particle[2]-0.1)
+            p = Pose()
+            p.position.x = best_particle[0]
+            p.position.y = best_particle[1]
+            p.position.z = best_particle[2]
+            suc = self.ac.pick(mode=0, goal=p) # pick master_chef_can
+            if suc:
+                self.state.add_action_to_action_history('grasp_master_chef_can')
+                for _ in range(1000):
+                    self.update_filters(publish=True)
+                best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
+                self.ac.point_head(best_particle[0], best_particle[1], best_particle[2]-0.1)
+                p = Pose()
+                p.position.x = best_particle[0]
+                p.position.y = best_particle[1]-0.15
+                p.position.z = best_particle[2]
+                self.ac.pick(mode=2, goal=p) # place since we cannot pour yet
+
+
+        else:
+            # Get best particle
+            best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
+            rospy.logwarn("[SFM DRIVER]: Highest weighted grasp_block particle at ({}, {}, {})".format(best_particle[0], best_particle[1], best_particle[2]))
+            # Nav to best particle
+            # self.ac.go_to(best_particle[0], best_particle[1], 0.0)
+            self.ac.move_torso(0.4)
+            self.ac.point_head(best_particle[0], best_particle[1], best_particle[2]-0.1)
+            # p = PoseStamped()
+            # p.header.frame_id = 'map'
+            # p.pose.position.x = best_particle[0]
+            # p.pose.position.y = best_particle[1]
+            # p.pose.position.z = best_particle[2]
+            # p.pose.orientation.w = 1.0
+            p = Pose()
+            p.position.x = best_particle[0]
+            p.position.y = best_particle[1]
+            p.position.z = best_particle[2]
+            p.orientation.w = 1
             
-            # means, covs, weights = self.frame_filters[frame_name.data].bgmm()
-            # max_idx = np.argmax(weights)
-            # max_weight_mean = means[max_idx]
-            rospy.logwarn("Pointing head to: ({}, {}, {})".format(mcc_det.x, mcc_det.y, mcc_det.z))
-            self.ac.point_head(mcc_det.x, mcc_det.y, mcc_det.z)
-            dist = self.dist(self.state.pose, mcc_det)
-            rospy.logwarn("Object is {} m away from the robot")
-            if dist > 0.8:
-                rospy.logwarn("Now navigate toward the obj")
-                nav_goal_x = mcc_det.x
-                nav_goal_y = mcc_det.y + 0.6
-                nav_goal_t = -np.pi/2  #np.arctan2(mcc_det.x, mcc_det.y)
-                rospy.logwarn("Nav goal: ({}, {}, {})".format(nav_goal_x, nav_goal_y, nav_goal_t))
-                self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
-            self.ac.point_head(mcc_det.x, mcc_det.y, mcc_det.z)
-            pick_pose = Pose()
-            pick_pose.position.x = mcc_det.x
-            pick_pose.position.y = mcc_det.y + 0.02
-            pick_pose.position.z = mcc_det.z
-            rospy.logwarn("Sending pick location to picker")
-            self.ac.pick(mode=1, goal=pick_pose)
+            suc = self.ac.pick(mode=0, goal=p)
+            # rospy.logwarn(suc)
+            # rospy.sleep(10)
+            # self.ac.pick(mode=2)
+            # rospy.sleep(10)
+            # self.ac.pick(mode=1)
+        self.update = True
+            # Run observation routine
+            # Update filters
+
+        # if frame_name.data == 'grasp_master_chef_can':
+        #     rospy.logwarn("Got request to grasp master can")
+        #     rospy.logwarn("First going to look at the can")
+        #     # frame_bgmm = self.frame_filters['grasp_master_chef_can'].bgmm()
+        #     grasp_mcc = self.frame_filters[frame_name.data]
+        #     mcc_obj = grasp_mcc.frame_element_filters['master_chef_can']
+        #     mcc_det = mcc_obj.observations[0]
+        #     # pick_pose = Pose()
+        #     # pick_pose.position.x = mcc_det.x
+        #     # pick_pose.position.y = mcc_det.y + 0.02
+        #     # pick_pose.position.z = mcc_det.z
+        #     # rospy.logwarn("Sending pick location to picker")
+        #     # self.ac.pick(mode=1, goal=pick_pose)
+            
+        #     # means, covs, weights = self.frame_filters[frame_name.data].bgmm()
+        #     # max_idx = np.argmax(weights)
+        #     # max_weight_mean = means[max_idx]
+        #     rospy.logwarn("Pointing head to: ({}, {}, {})".format(mcc_det.x, mcc_det.y, mcc_det.z))
+        #     self.ac.point_head(mcc_det.x, mcc_det.y, mcc_det.z)
+        #     dist = self.dist(self.state.pose, mcc_det)
+        #     rospy.logwarn("Object is {} m away from the robot")
+        #     if dist > 0.8:
+        #         rospy.logwarn("Now navigate toward the obj")
+        #         nav_goal_x = mcc_det.x
+        #         nav_goal_y = mcc_det.y + 0.6
+        #         nav_goal_t = -np.pi/2  #np.arctan2(mcc_det.x, mcc_det.y)
+        #         rospy.logwarn("Nav goal: ({}, {}, {})".format(nav_goal_x, nav_goal_y, nav_goal_t))
+        #         self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
+        #     self.ac.point_head(mcc_det.x, mcc_det.y, mcc_det.z)
+        #     pick_pose = Pose()
+        #     pick_pose.position.x = mcc_det.x
+        #     pick_pose.position.y = mcc_det.y + 0.02
+        #     pick_pose.position.z = mcc_det.z
+        #     rospy.logwarn("Sending pick location to picker")
+        #     self.ac.pick(mode=1, goal=pick_pose)
             
 # def pick(self, mode=0, goal=None):
 #     if mode == 1:
@@ -423,39 +503,169 @@ class SFMClient():
         
             
     
-    def run(self, data):
-        for step in self.experiment_config['steps']:
-            if step == "Update Filters":
-                rospy.loginfo("Updating filters")
-                update_steps = 30
-                for i in range(update_steps):
-                    # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
-                    if self.record:
-                        # if we are recording a bag publish every time
-                        foo.update_filters(publish=True)
-                    else:
-                        # if not just publish every 10 updates
-                        foo.update_filters(publish=(i%10==0))
-                    foo.publish_regions()
-            elif step.startswith('Execute'):
-                frame_name = step.split(' ')[-1]
-                if foo.execute_frame(frame_name):
-                    rospy.logwarn("SFM Driver: Execution Success")
-                else:
-                    rospy.logwarn("SFM Driver: Execution Failure")
-            elif step == "Observe":
-                try:
-                    foo.add_observations(experiment_config['observations'])
-                except KeyError:
-                    foo.add_observations()
-        rospy.logwarn("Done!")
+    def run(self):
+        # rospy.wait_for_service("/gazebo/spawn_sdf_model")
+        # spawn_model_client = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
+        # for object in self.experiment_config['objects']:
+        #     roll = object['gt_loc']['roll']
+        #     pitch = object['gt_loc']['pitch']
+        #     yaw = object['gt_loc']['yaw']
+        #     spawn_model_client(
+        #         model_name='ground_plane',
+        #         model_xml=open('/home/cuhsailus/Desktop/Research/22_academic_year/gazebo_ws/src/gazebo_ycb/models/{}/model.sdf'.format(object['name']), 'r').read(),
+        #         robot_namespace='/foo',
+        #         initial_pose=Pose(
+        #             position=Point(
+        #                 object['gt_loc']['x'], 
+        #                 object['gt_loc']['y'], 
+        #                 object['gt_loc']['z']), 
+        #             orientation=Quaternion(
+        #                 np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2),
+        #                 np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2),
+        #                 np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2),
+        #                 np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+        #                 )),
+        #         reference_frame='world'
+        #     )
+        # spawn_model_srv = rospy.ServiceProxy("/gazebo/spawn_urdf_model", SpawnModel)
+        # root = 
+        # for object in self.experiment_config['objects']:
+
+        #     msg = SpawnModel()
+        #     msg.model_name = object['name']
+        #     msg.model_xlm = os.path.join()
+        # gcb_filter = self.frame_filters['grasp_cracker_box']
+        # rospy.wait_for_service("/gazebo/set_model_state")
+        # set_state = rospy.ServiceProxy("/gazebo/set_model_state", SetModelState)
+        # for object in self.experiment_config['objects']:
+        #     msg = ModelState()
+        #     msg.model_name = object['name']
+        #     msg.pose.position.x = object['gt_loc']['x']
+        #     msg.pose.position.y = object['gt_loc']['y']
+        #     msg.pose.position.z = object['gt_loc']['z']
+            # roll = object['gt_loc']['roll']
+            # pitch = object['gt_loc']['pitch']
+            # yaw = object['gt_loc']['yaw']
+            # msg.pose.orientation.x = np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+            # msg.pose.orientation.y = np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2)
+            # msg.pose.orientation.z = np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2)
+            # msg.pose.orientation.w = np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+        #     set_state(msg)
+        # for i in range(21):
+        #     if i % 10 == 0:
+        #         rospy.logwarn(i)
+        #     self.update_filters(publish=True)
+        # highest_weighted_particle = gcb_filter.particles[np.argmax(gcb_filter.weights)]
+        # rospy.logwarn("Highest weighted particle located at ({:.4f}, {:.4f}, {:.4f}".format(highest_weighted_particle[0], highest_weighted_particle[1], highest_weighted_particle[2]))
+        # self.ac.go_to(highest_weighted_particle[0], highest_weighted_particle[1], 0)
+        # self.ac.point_head(highest_weighted_particle[0], highest_weighted_particle[1], highest_weighted_particle[2])
+        # self.run_observation_routine()
+        # for i in range(21):
+        #     if i % 10 == 0:
+        #         rospy.logwarn(i)
+        #     self.update_filters(publish=True)
+        # highest_weighted_particle = gcb_filter.particles[np.argmax(gcb_filter.weights)]
+        # rospy.logwarn("Highest weighted particle located at ({:.4f}, {:.4f}, {:.4f}".format(highest_weighted_particle[0], highest_weighted_particle[1], highest_weighted_particle[2]))
+        # self.ac.go_to(highest_weighted_particle[0], highest_weighted_particle[1], 0)
+        # self.ac.point_head(highest_weighted_particle[0], highest_weighted_particle[1], highest_weighted_particle[2])
+        # self.run_observation_routine()
+        # run yolo wait for detections
+        
+        
+
+        # rospy.logwarn("Set all model states")
+        # rospy.loginfo("Moving to kitchen counter...")
+        # self.ac.go_to(6,0,0)
+        # self.ac.go_to(6.8, -3.3, -1.57079632679)
+        # self.ac.go_to(6.8, -5.3, -1.57079632679)
+        # rospy.loginfo("Raising torso...")
+        # self.ac.move_torso(0.4)
+        # rospy.loginfo("Looking at (6.8, -6, 0.8)")
+        # self.ac.point_head(6.8, -6, 0.6)
+        # self.ac.pick(mode=0) # mode == 0 --> pick
+        # self.ac.pick(mode=2) # mode == 2 --> place
+        # self.ac.pick(mode=1) # mode == 1 --> tuck_arm
+        # self.ac.move_torso(0.0)
+        
+        while not rospy.is_shutdown():
+            if self.update:
+                self.update_filters(publish=True)
+                self.publish_regions()
+            else:
+                pass
+
+        # for step in self.experiment_config['steps']:
+        #     if step == "Update Filters":
+        #         rospy.loginfo("Updating filters")
+        #         update_steps = 30
+        #         for i in range(update_steps):
+        #             # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
+        #             if self.record:
+        #                 # if we are recording a bag publish every time
+        #                 foo.update_filters(publish=True)
+        #             else:
+        #                 # if not just publish every 10 updates
+        #                 foo.update_filters(publish=(i%10==0))
+        #             foo.publish_regions()
+        #     elif step.startswith('Execute'):
+        #         frame_name = step.split(' ')[-1]
+        #         if foo.execute_frame(frame_name):
+        #             rospy.logwarn("SFM Driver: Execution Success")
+        #         else:
+        #             rospy.logwarn("SFM Driver: Execution Failure")
+        #     elif step == "Observe":
+        #         try:
+        #             foo.add_observations(experiment_config['observations'])
+        #         except KeyError:
+        #             foo.add_observations()
+        # rospy.logwarn("Done!")
 
         
 
 if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
-    ac = ActionClient()
-    ac.pick()
+    
+    # ac = ActionClient()
+    # Move the base to be in front of the table
+    # Demonstrates the use of the navigation stack
+    # rospy.loginfo("Moving to table...")
+    # ac.go_to(6, -5.4, -1.57079632679)
+    # move_base.goto(2.750, 3.118, 0.0)
+
+    # # Raise the torso using just a controller
+    # rospy.loginfo("Raising torso...")
+    # ac.move_torso(0.4)
+
+    # # Point the head at the cube we want to pick
+    # ac.point_head(6.8, -6, 0.8)
+
+    # ac.pick(mode=0)
+    # ac.pick(mode=1) # mode == 1 --> tuck_arm
+    # ac.move_torso(0.0)
+    
+
+    # # Get block to pick
+    # while not rospy.is_shutdown():
+    #     rospy.loginfo("Picking object...")
+    #     grasping_client.updateScene()
+    #     cube, grasps = grasping_client.getGraspableCube()
+    #     if cube == None:
+    #         rospy.logwarn("Perception failed.")
+    #         continue
+
+    #     # Pick the block
+    #     if grasping_client.pick(cube, grasps):
+    #         break
+    #     rospy.logwarn("Grasping failed.")
+
+    # # # Tuck the arm
+    # grasping_client.tuck()
+
+    # # # Lower torso
+    # rospy.loginfo("Lowering torso...")
+    # torso_action.move_to([0.0, ])
+
+    # rospy.loginfo("Done!")
     # gloc_client = actionlib.SimpleActionClient('grasploc_requests', GrasplocRequestAction)
     # gloc_client.wait_for_server()
     # goal = GrasplocRequestGoal()
@@ -511,28 +721,27 @@ if __name__ == '__main__':
     """
 
 
-    """
 
     with open(rospy.get_param("~experiment_config"), 'r') as file:
         experiment_config = yaml.safe_load(file)
     foo = SFMClient(experiment_config)
     rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(experiment_config['title']))
+    foo.run()
     
-    
-    r = rospy.Rate(1000)
-    i = 0
-    while not rospy.is_shutdown():
-        # if i < 20:
-        #     print("ITR: {}".format(i+1))
-        #     # if i == 100:
-        #     #     foo.go_to()
-        #     # rospy.loginfo("Updating...")
-        foo.update_filters()
-        foo.publish_regions()
-        #     # print(foo.state.action_history)
-        #     # rospy.loginfo(i)
-        #     # if i == 10:
-        #     #     foo.frame_filters['grasp_bottle'].bgmm()
-        #     i+=1
-        r.sleep()
-    """
+    # r = rospy.Rate(1000)
+    # i = 0
+    # while not rospy.is_shutdown():
+    #     rospy.spin()
+    #     if i < 20:
+    #     #     print("ITR: {}".format(i+1))
+    #     #     # if i == 100:
+    #     #     #     foo.go_to()
+    #     #     # rospy.loginfo("Updating...")
+    #     foo.update_filters()
+    #     foo.publish_regions()
+    #     #     # print(foo.state.action_history)
+    #     #     # rospy.loginfo(i)
+    #     #     # if i == 10:
+    #     #     #     foo.frame_filters['grasp_bottle'].bgmm()
+    #     #     i+=1
+    #     r.sleep()
