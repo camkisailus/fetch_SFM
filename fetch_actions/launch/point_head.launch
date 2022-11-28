@@ -1,3 +1,0 @@
-<launch>
-    <node pkg="fetch_actions" type="point_head.py" name="point_head_client_node" output="screen"/>
-</launch>
