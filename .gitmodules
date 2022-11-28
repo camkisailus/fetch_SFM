@@ -7,3 +7,7 @@
 [submodule "moveit"]
 	path = moveit
 	url = https://github.com/ros-planning/moveit.git
+[submodule "fetch_onboard"]
+	path = fetch_onboard
+	url = https://github.com/camkisailus/fetch_onboard.git
+	branch = submodule

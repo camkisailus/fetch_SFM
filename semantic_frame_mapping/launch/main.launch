@@ -6,4 +6,7 @@
     <include file="$(find semantic_frame_mapping)/launch/semantic_frame_mapping.launch">
         <arg name="experiment_config" value="$(arg experiment_config)"/>
     </include>
+    <!-- RVIZ -->
+    <node type="rviz" name="rviz" pkg="rviz" args="-d /home/cuhsailus/Desktop/Research/22_academic_year/fetch_sfm_ws/rviz_configs/gazebo_pick.rviz" output="log"/>
+
 </launch>

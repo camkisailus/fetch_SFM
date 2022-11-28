@@ -1,3 +1,0 @@
-<launch>
-    <node pkg="fetch_actions" type="move_base.py" name="move_base_client_node" output="screen"/>
-</launch>
