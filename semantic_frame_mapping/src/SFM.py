@@ -7,7 +7,7 @@ from utils import *
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Point, PoseWithCovarianceStamped, Pose, PoseStamped, Quaternion
 from std_msgs.msg import String, Int8
-from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal
+from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal, PourRequestAction
 from nav_msgs.srv import GetPlan, GetPlanResponse
 from grasploc_wrapper_msgs.msg import GrasplocRequestAction, GrasplocRequestGoal
 from gazebo_msgs.srv import SetModelState, SetModelStateResponse
@@ -86,6 +86,9 @@ class ActionClient():
         self.pick_client = actionlib.SimpleActionClient("kisailus_pick", PickRequestAction)
         self.pick_client.wait_for_server()
         rospy.logwarn("Connected to pick server")
+        self.pour_client = actionlib.SimpleActionClient("mattshan_pour", PourRequestAction)
+        self.pour_client.wait_for_server()
+        rospy.logwarn("Connected to pour server")
         # self.pick_sub = rospy.Subscriber("pick", Bool, self.pick_from_cmd)
         # self.tf_listener = tf.TransformListener()
         # self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
@@ -149,7 +152,8 @@ class ActionClient():
     
     # def tuck_arm(self):
 
-        
+    def pour(self):
+        return self.pour_client.get_result()
     
     
 class SFMClient():
