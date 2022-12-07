@@ -131,6 +131,8 @@ class ActionClient():
         request.mode = mode
         if goal:
            request.pick_pose = goal # this is particle loc in map frame
+        if mode == 3:
+            request.pour_pose = goal
         self.pick_client.send_goal(request)
         rospy.loginfo("Sent pick_client goal")
         self.pick_client.wait_for_result()
@@ -351,14 +353,27 @@ class SFMClient():
                 p.position.y = best_particle[1]-0.15
                 p.position.z = best_particle[2]
                 self.ac.pick(mode=2, goal=p) # place since we cannot pour yet
-
-
+        elif frame_name.data == 'pour_cheezit':
+            # self.ac.move_torso(0.4)
+            # self.ac.point_head(6.7, -6.0, 0.75)
+            cheezit_gt = Pose()
+            cheezit_gt.position.x = 1.0
+            cheezit_gt.position.y = -2.0
+            cheezit_gt.position.z = 0.7
+            cheezit_gt.orientation.w = 1.0
+            if self.ac.pick(mode=0, goal=cheezit_gt):
+                pour_pose = Pose()
+                pour_pose.position.x = 1.5
+                pour_pose.position.y = -2.4
+                pour_pose.position.z = 1.0
+                rospy.logwarn("Pouring now...")
+                self.ac.pick(mode=3, goal=pour_pose)
         else:
             # Get best particle
             best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
             rospy.logwarn("[SFM DRIVER]: Highest weighted grasp_block particle at ({}, {}, {})".format(best_particle[0], best_particle[1], best_particle[2]))
             # Nav to best particle
-            # self.ac.go_to(best_particle[0], best_particle[1], 0.0)
+            self.ac.go_to(best_particle[0], best_particle[1], 0.0)
             self.ac.move_torso(0.4)
             self.ac.point_head(best_particle[0], best_particle[1], best_particle[2]-0.1)
             # p = PoseStamped()
@@ -504,29 +519,29 @@ class SFMClient():
             
     
     def run(self):
-        # rospy.wait_for_service("/gazebo/spawn_sdf_model")
-        # spawn_model_client = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
-        # for object in self.experiment_config['objects']:
-        #     roll = object['gt_loc']['roll']
-        #     pitch = object['gt_loc']['pitch']
-        #     yaw = object['gt_loc']['yaw']
-        #     spawn_model_client(
-        #         model_name='ground_plane',
-        #         model_xml=open('/home/cuhsailus/Desktop/Research/22_academic_year/gazebo_ws/src/gazebo_ycb/models/{}/model.sdf'.format(object['name']), 'r').read(),
-        #         robot_namespace='/foo',
-        #         initial_pose=Pose(
-        #             position=Point(
-        #                 object['gt_loc']['x'], 
-        #                 object['gt_loc']['y'], 
-        #                 object['gt_loc']['z']), 
-        #             orientation=Quaternion(
-        #                 np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2),
-        #                 np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2),
-        #                 np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2),
-        #                 np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
-        #                 )),
-        #         reference_frame='world'
-        #     )
+        rospy.wait_for_service("/gazebo/spawn_sdf_model")
+        spawn_model_client = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
+        for object in self.experiment_config['objects']:
+            roll = object['gt_loc']['roll']
+            pitch = object['gt_loc']['pitch']
+            yaw = object['gt_loc']['yaw']
+            spawn_model_client(
+                model_name=object['name'],
+                model_xml=open('/home/cuhsailus/Desktop/Research/22_academic_year/gazebo_ws/src/gazebo_ycb/models/{}/model.sdf'.format(object['name']), 'r').read(),
+                robot_namespace='/foo',
+                initial_pose=Pose(
+                    position=Point(
+                        object['gt_loc']['x'], 
+                        object['gt_loc']['y'], 
+                        object['gt_loc']['z']), 
+                    orientation=Quaternion(
+                        np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2),
+                        np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2),
+                        np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2),
+                        np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+                        )),
+                reference_frame='world'
+            )
         # spawn_model_srv = rospy.ServiceProxy("/gazebo/spawn_urdf_model", SpawnModel)
         # root = 
         # for object in self.experiment_config['objects']:

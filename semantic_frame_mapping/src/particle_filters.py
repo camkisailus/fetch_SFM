@@ -425,8 +425,10 @@ class ObjectParticleFilter(ParticleFilter):
 
     def add_observation(self, msg):
         # TODO: Isaac make sure multiple instances are handled correctly.
+        added_obs = False # was obj observed in latest YOLO detection ?
         for observation in msg.detections:
             if observation.label == self.label:
+                added_obs = True
                 new_obs = True
                 for obs in self.observations:
                     if obs.label == observation.label:
@@ -436,6 +438,8 @@ class ObjectParticleFilter(ParticleFilter):
                     rospy.loginfo("{}_pf: Received NEW observation at ({}, {}, {})".format(self.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z))
                     obj = StaticObject(observation.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z)
                     self.observations.append(obj)
+        # if not added_obs:
+        #     # add a negative region 
     
     
     def assign_weight(self, particle):

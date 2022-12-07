@@ -1,0 +1,16 @@
+# semantic frame
+# grasp_bowl_sf.yaml 
+
+name: pour_jello
+description: Pour contents of jello box into bowl
+frame_elements:
+  - name: jello
+    is_core: True
+  - name: bowl
+    is_core: True
+  - name: object_compound_modifier
+    is_core: False 
+  - name: object_adjective_modifier
+    is_core: False
+preconditions:
+  - name: grasp_jello
