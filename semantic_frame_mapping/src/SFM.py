@@ -13,6 +13,7 @@ from grasploc_wrapper_msgs.msg import GrasplocRequestAction, GrasplocRequestGoal
 from gazebo_msgs.srv import SetModelState, SetModelStateResponse
 from gazebo_msgs.srv import SpawnModel, SpawnModelResponse
 from gazebo_msgs.msg import ModelState
+
 # import tf
 
 class State():
@@ -129,8 +130,12 @@ class ActionClient():
     def pick(self, mode=0, goal=None):
         request = PickRequestGoal()
         request.mode = mode
-        if goal:
-           request.pick_pose = goal # this is particle loc in map frame
+        # if mode == 0:
+        #     request.pick_pose = goal
+        if mode == 3:
+            request.pick_pose = goal
+        # if goal:
+        #    request.pick_pose = goal
         self.pick_client.send_goal(request)
         rospy.loginfo("Sent pick_client goal")
         self.pick_client.wait_for_result()
@@ -228,7 +233,6 @@ class SFMClient():
     #     for _ in range(msg.data*10):
     #         self.update_filters()
     #     rospy.logwarn("Done updating filters")
-        
     def publish_regions(self):
         for region in self.regions.values():
             region.publish()
@@ -351,7 +355,63 @@ class SFMClient():
                 p.position.y = best_particle[1]-0.15
                 p.position.z = best_particle[2]
                 self.ac.pick(mode=2, goal=p) # place since we cannot pour yet
+        elif frame_name.data == 'grasp_jello':
+            self.ac.pick(mode=0, goal=None)
+        elif frame_name.data == 'grasp_cup':
+            best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
+            self.ac.point_head(best_particle[0], best_particle[1], best_particle[2]-0.1)
+            p = Pose()
+            p.position.x = best_particle[0]
+            p.position.y = best_particle[1]
+            p.position.z = best_particle[2]
+            suc = self.ac.pick(mode=0, goal=p)
+        elif frame_name.data == 'grasp_cracker_box':
+            best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
+            # self.ac.move_torso(0.4)
+            # self.ac.point_head(best_particle[0], best_particle[1], best_particle[2]-0.1)
+            p = Pose()
+            p.position.x = best_particle[0]
+            p.position.y = best_particle[1]
+            p.position.z = best_particle[2]
+            suc = self.ac.pick(mode=0, goal=p) # pick
+            ## Now Pour (test)
+            self.ac.pick(mode=3, goal=None)
+        elif frame_name.data == 'make_jello':
+            # pour jello into bowl
+            best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
+            p = Pose()
+            p.position.x = best_particle[0]
+            p.position.y = best_particle[1]
+            p.position.z = best_particle[2]
+            # self.ac.point_head(p.position.x, p.position.y, p.position.z)
+            # rospy.sleep(1)
+            suc = self.ac.pick(mode=3, goal=p)
+            if not suc:
+                rospy.logwarn("Pour Jello into bowl failed")
+                return
+            self.state.add_action_to_action_history("grasp_jello_box")
+            self.state.add_action_to_action_history("pour_jello_bowl")
+            rospy.logwarn("Done pouring Jello.")
+            rospy.logwarn("Action history is now: {}".format(self.state.action_history))
+            self.update = True
+            self.ac.pick(mode=10) # ready arm
+            rospy.logwarn("Sleeping for 15 seconds")
+            rospy.sleep(15) # update for 15 seconds
+            rospy.logwarn("Moving on")
+            # pour cup into bowl
+            best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
+            p = Pose()
+            p.position.x = best_particle[0]
+            p.position.y = best_particle[1]
+            p.position.z = best_particle[2]
+            # self.ac.point_head(p.position.x, p.position.y, p.position.z)
+            # rospy.sleep(1)
+            suc = self.ac.pick(mode=3, goal=p)
+            self.state.add_action_to_action_history("pour_cup_bowl")
 
+
+            # tuck
+            # self.ac.pick(mode=2)
 
         else:
             # Get best particle

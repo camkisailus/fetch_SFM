@@ -11,6 +11,10 @@ regions:
     min_z: 0.5
     max_z: 2
 objects:
+  # - name: "cup"
+  #   priors:
+  #     - name: "lab"
+  #       weight: 1.0
   - name: "cracker_box"
     priors:
       - name: "lab"
@@ -23,25 +27,26 @@ objects:
   #   priors:
   #     - name: "lab"
   #       weight: 1.0
-  - name: "master_chef_can"
-    priors:
-      - name: "lab"
-        weight: 1.0 
+  # - name: "master_chef_can"
+  #   priors:
+  #     - name: "lab"
+  #       weight: 1.0 
   # - name: "sugar_box"
   #   priors:
   #     - name: "lab"
   #       weight: 1.0
-  - name: "mug"
-    priors:
-      - name: "lab"
-        weight: 1.0
+  # - name: "mug"
+  #   priors:
+  #     - name: "lab"
+  #       weight: 1.0
 frames:
-  - "grasp_master_chef_can"
+  # - "grasp_cup"
+  # - "grasp_master_chef_can"
   - "grasp_cracker_box"
   # - "grasp_sugar_box"
   # - "grasp_soup"
-  - "grasp_mug"
-  - "make_coffee"
+  # - "grasp_mug"
+  # - "make_coffee"
   # - "pour_coffee_mug"
   # - "make_coffee"
   #- "grasp_cup"

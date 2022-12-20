@@ -2,7 +2,7 @@
 # grasp_cup_sf.yaml 
 
 name: grasp_cup
-description: grasp a bottle 
+description: grasp a cup 
 frame_elements:
   - name: cup
     is_core: True

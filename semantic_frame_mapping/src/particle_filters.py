@@ -22,7 +22,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Pose, PointStamped
 from std_msgs.msg import Bool
 from semantic_frame_mapping.msg import ObjectDetection, ObjectDetectionArray
-# from apriltag_ros.msg import AprilTagDetectionArray
+from apriltag_ros.msg import AprilTagDetectionArray
 
 
 
@@ -282,102 +282,118 @@ class ParticleFilter(object):
         # assert(sum(self.weights) == 1.0)
         # lowest_weight = min(self.weights)
         # threshold = lowest_weight + float((highest_weight-lowest_weight)*0.8)
-        for i in range(self.n):
-            marker = Marker()
-            marker.id = i
-            marker.header.frame_id = 'map'
-            if self.label == 'mug':
-                # red cube
-                marker.color.g = 1
-                marker.type = marker.CUBE
-            elif self.label == 'master_chef_can':
-                # blue cube
-                marker.color.b = 1
-                marker.type = marker.CUBE
-            elif self.label == 'cracker_box':
-                # green cube
-                marker.color.r = 1
-                marker.type = marker.CUBE
-            elif self.label == 'soup':
-                # purple cube
-                marker.color.r = 1
-                marker.color.b = 1
-                marker.type = marker.CUBE
-            elif self.label == 'mustard_bottle':
-                marker.color.r = 1
-                marker.color.g = 1
-                marker.type = marker.CUBE
-            elif self.label == 'grasp_mustard_bottle':
-                marker.color.r = 1
-                marker.color.g = 1
-                marker.type = marker.SPHERE
-            elif self.label == 'grasp_master_chef_can':
-                # red sphere
-                marker.color.b = 1
-                marker.type = marker.SPHERE
-            elif self.label == 'grasp_mug':
-                marker.color.g = 1
-                marker.type = marker.SPHERE
-            # elif self.label == 'pour_coffee_mug':
-            #     # blue sphere
-            #     marker.color.b = 1
-            #     marker.type = marker.SPHERE
-            elif self.label == 'make_coffee':
-                # green sphere
-                marker.color.r = 1
-                marker.color.b = 1
-                marker.type = marker.SPHERE
-            elif self.label == 'grasp_cracker_box':
-                marker.color.r = 1
-                # marker.color.g = 1
-                marker.type = marker.SPHERE  
-            # elif self.label == 'stir_bowl':
-            #     marker.color.b = 1
-            #     marker.color.g = 1
-            #     marker.type = marker.SPHERE
-            # elif self.label == 'stir_cup':
-            #     marker.color.b = 1
-            #     marker.color.r = 1
-            #     marker.type = marker.SPHERE
-                    
-            
-            marker.action = marker.ADD
-            # marker.lifetime = rospy.Duration(10)
-            marker.scale.x = 0.1
-            marker.scale.y = 0.1
-            marker.scale.z = 0.1
-            # marker.color.a = 1 if self.weights[i] == max_weight else 0
-            if max_weight == min_weight:
-                marker.color.a = 0.8
-            else:
-                a = min(round((self.weights[i] - min_weight) / (max_weight - min_weight), 2) + 0.45, 1.0)
-                marker.color.a = a
-                if a < 0.6:
-                    marker.color.a = 0.1
-                else:
-                    marker.color.a = a
-            # marker.color.a = 0.7
-            # if self.weights[i] <= float(highest_weight/4):
-            #     marker.color.a = 0.25
-            # if self.weights[i] <= float(highest_weight/2):
-            #     marker.color.a = 0.25
-            # elif self.weights[i] <= float(3*highest_weight/4):
-            #     marker.color.a = 0.75
-            # else:
-            #     marker.color.a = 1.0
-            marker.pose.orientation.w = 1.0
-            marker.pose.position.x = self.particles[i, 0]
-            marker.pose.position.y = self.particles[i, 1]
-            marker.pose.position.z = self.particles[i, 2]
-            marker_array.markers.append(marker)
+
+        # for i in range(self.n):
+        marker = Marker()
+        marker.id = 0#i
+        marker.header.frame_id = 'map'
+        if self.label == 'cup':
+            # red cube
+            marker.color.g = 1
+            marker.type = marker.CUBE
+        elif self.label == 'bowl':
+            # blue cube
+            marker.color.b = 1
+            marker.type = marker.CUBE
+        elif self.label == 'gelatin_box':
+            # green cube
+            marker.color.r = 1
+            marker.type = marker.CUBE
+        # elif self.label == 'soup':
+        #     # purple cube
+        #     marker.color.r = 1
+        #     marker.color.b = 1
+        #     marker.type = marker.CUBE
+        # elif self.label == 'mustard_bottle':
+        #     marker.color.r = 1
+        #     marker.color.g = 1
+        #     marker.type = marker.CUBE
+        # elif self.label == 'grasp_mustard_bottle':
+        #     marker.color.r = 1
+        #     marker.color.g = 1
+        #     marker.type = marker.SPHERE
+        elif self.label == 'grasp_jello_box':
+            # blue sphere
+            marker.color.r = 1
+            marker.type = marker.SPHERE
+        elif self.label == 'grasp_cup':
+            marker.color.g = 1
+            marker.type = marker.SPHERE
+        elif self.label == 'pour_jello_bowl':
+            marker.color.b = 1
+            marker.type = marker.SPHERE
+        elif self.label == 'pour_cup_bowl':
+            marker.color.r = 1
+            marker.color.g = 1
+            marker.type = marker.SPHERE
+        # elif self.label =='grasp_jello_box':
+        #     marker.color.b = 1
+        #     marker.type = marker.CUBE
+        # elif self.label == 'grasp_cup':
+        #     marker.color.b = 1
+        #     marker.type = marker.SPHERE
+        # elif self.label == 'pour_coffee_mug':
+        #     # blue sphere
+        #     marker.color.b = 1
+        #     marker.type = marker.SPHERE
+        elif self.label == 'make_jello':
+            # green sphere
+            marker.color.r = 1
+            marker.color.b = 1
+            marker.type = marker.SPHERE
+        # elif self.label == 'grasp_cracker_box':
+        #     marker.color.r = 1
+        #     # marker.color.g = 1
+        #     marker.type = marker.SPHERE  
+        # elif self.label == 'stir_bowl':
+        #     marker.color.b = 1
+        #     marker.color.g = 1
+        #     marker.type = marker.SPHERE
+        # elif self.label == 'stir_cup':
+        #     marker.color.b = 1
+        #     marker.color.r = 1
+        #     marker.type = marker.SPHERE
+                
+        
+        marker.action = marker.ADD
+        # marker.lifetime = rospy.Duration(10)
+        marker.scale.x = 0.1
+        marker.scale.y = 0.1
+        marker.scale.z = 0.1
+        marker.color.a = 1
+        # marker.color.a = 1 if self.weights[i] == max_weight else 0
+        # if max_weight == min_weight:
+        #     marker.color.a = 0.8
+        # else:
+        #     a = min(round((self.weights[i] - min_weight) / (max_weight - min_weight), 2) + 0.45, 1.0)
+        #     marker.color.a = a
+        #     if a < 0.6:
+        #         marker.color.a = 0.1
+        #     else:
+        #         marker.color.a = a
+        # marker.color.a = 0.7
+        # if self.weights[i] <= float(highest_weight/4):
+        #     marker.color.a = 0.25
+        # if self.weights[i] <= float(highest_weight/2):
+        #     marker.color.a = 0.25
+        # elif self.weights[i] <= float(3*highest_weight/4):
+        #     marker.color.a = 0.75
+        # else:
+        #     marker.color.a = 1.0
+        marker.pose.orientation.w = 1.0
+        map = self.particles[np.argmax(self.weights)]
+        marker.pose.position.x = map[0] # self.particles[i, 0]
+        marker.pose.position.y = map[1] # self.particles[i, 1]
+        marker.pose.position.z = map[2] # self.particles[i, 2]
+        marker_array.markers.append(marker)
         self.marker_pub.publish(marker_array)
 
 class ObjectParticleFilter(ParticleFilter):
     def __init__(self, n, valid_regions, label):
         super(ObjectParticleFilter, self).__init__(n, label, valid_regions)
-        # self.ar_to_obj_map = {0: 'mug', 1:'elevator_button'}
+        self.ar_to_obj_map = {4:'cup', 5:'bowl', 6:'gelatin_box'} #{0: 'mug', 1:'elevator_button'}
         self.observation_sub = rospy.Subscriber('scene/observations', ObjectDetectionArray, self.add_observation, queue_size=1)
-        # self.apriltag_sub = rospy.Subscriber('tag_detections', AprilTagDetectionArray, self.handle_ar_detection, queue_size=1)
+        self.apriltag_sub = rospy.Subscriber('tag_detections', AprilTagDetectionArray, self.handle_ar_detection, queue_size=1)
         
         self.marker_pub = rospy.Publisher('filter/particles/{}'.format(label), MarkerArray, queue_size=10)
         self.observations = []

@@ -1,0 +1,14 @@
+name: make_jello
+description: make jello
+frame_elements:
+  - name: gelatin_box
+    is_core: True
+  - name: bowl
+    is_core: True
+  - name: cup
+    is_core: True
+preconditions:
+  - name: grasp_jello_box
+  - name: pour_jello_bowl
+  - name: grasp_cup
+  - name: pour_cup_bowl

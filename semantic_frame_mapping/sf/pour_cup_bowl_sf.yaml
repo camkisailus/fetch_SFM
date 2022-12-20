@@ -1,0 +1,9 @@
+name: pour_cup_bowl
+description: pour contents of cup into bowl
+frame_elements:
+  - name: cup
+    is_core: True
+  - name: bowl
+    is_core: True
+preconditions:
+  - name: grasp_cup

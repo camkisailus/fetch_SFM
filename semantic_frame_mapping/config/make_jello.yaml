@@ -1,0 +1,33 @@
+# Experiment Setup
+
+title: "make_jello"
+description: ""
+regions:
+  - name: "lab"
+    min_x: -3.0
+    max_x: 6.0
+    min_y: -10.0
+    max_y: 3.0
+    min_z: 0.5
+    max_z: 2
+objects:
+  - name: "cup"
+    priors:
+      - name: "lab"
+        weight: 1.0
+  - name: "bowl"
+    priors:
+      - name: "lab"
+        weight: 1.0
+  - name: "gelatin_box"
+    priors:
+      - name: "lab"
+        weight: 1.0
+frames:
+  - "grasp_cup"
+  - "grasp_jello_box"
+  - "pour_jello_bowl"
+  - "pour_cup_bowl"
+  - "make_jello"
+action_history:
+  - "idle"

@@ -1,0 +1,12 @@
+# semantic frame
+# grasp_jello_box_sf.yaml
+
+name: grasp_jello_box
+description: grasp the gelatin box
+frame_elements:
+  - name: gelatin_box
+    is_core: True
+  - name: object_compound_modifier
+    is_core: False
+  - name: object_adjective_modifier
+    is_core: False
