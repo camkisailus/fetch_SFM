@@ -395,8 +395,9 @@ class SFMClient():
             rospy.logwarn("Action history is now: {}".format(self.state.action_history))
             self.update = True
             self.ac.pick(mode=10) # ready arm
-            rospy.logwarn("Sleeping for 15 seconds")
-            rospy.sleep(15) # update for 15 seconds
+            self.ac.move_torso(0.4)
+            rospy.logwarn("Sleeping for 10 seconds")
+            rospy.sleep(10) # update for 10 seconds
             rospy.logwarn("Moving on")
             # pour cup into bowl
             best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
@@ -411,7 +412,7 @@ class SFMClient():
 
 
             # tuck
-            # self.ac.pick(mode=2)
+            self.ac.pick(mode=2)
 
         else:
             # Get best particle
