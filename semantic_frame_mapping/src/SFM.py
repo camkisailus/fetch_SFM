@@ -231,11 +231,33 @@ class SFMClient():
                 max_x = cur_pose.position.x + 2
                 min_y = cur_pose.position.y - 2
                 max_y = cur_pose.position.y + 2
-                min_z = 0
+                min_z = 0   
                 max_z = 1.5
                 reg = Region("{}_neg_reg_{}".format(filter.label, len(self.neg_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
                 filter.add_negative_region(reg)
                 self.neg_regions.add(reg)
+    
+    def check_point_in_cube(cube, point):
+        dir1 = (cube[4]-cube[0])
+        size1 = np.linalg.norm(dir1)
+        dir1 = dir1 / size1
+
+        dir2 = (cube[3]-cube[0])
+        size2 = np.linalg.norm(dir2)
+        dir2 = dir2 / size2
+
+        dir3 = (cube[1]-cube[0])
+        size3 = np.linalg.norm(dir3)
+        dir3 = dir3 / size3
+
+        cube3d_center = (cube[0] + cube[6])/2.0
+
+        dir_vec = point - cube3d_center
+        print(size1,size2, size3)
+        if ((np.absolute(np.dot(dir_vec, dir1)) * 2) <= size1) and ((np.absolute(np.dot(dir_vec, dir2)) * 2) <= size2) and ((np.absolute(np.dot(dir_vec, dir3)) * 2) <= size3):
+            return True
+        else :
+            return False
 
     def run_observation_routine(self, frame=None):
         """
@@ -245,15 +267,76 @@ class SFMClient():
         else, add that region as a negative obersvation region for that object
         
         """
-        cur_pose = self.state.pose
-        min_x = cur_pose.position.x - 2
-        max_x = cur_pose.position.x + 2
-        min_y = cur_pose.position.y - 2
-        max_y = cur_pose.position.y + 2
-        min_z = 0
-        max_z = 2.0
-        reg = Region("neg_reg_{}".format(len(self.neg_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
-        region_added = False
+        #Observable region is cube
+        cube_length = 2
+        #Constructing a cube in Camera Tilt Link
+        cube_coord = np.zeros((8,3))
+        #Bottom 4 points, going counter-clockwise from bottom left corner
+        cube_coord[0] = np.array([0, 0.5*cube_length, -0.5*cube_length])
+        cube_coord[1] = np.array([0, -0.5*cube_length, -0.5*cube_length])
+        cube_coord[2] = np.array([cube_length, -0.5*cube_length, -0.5*cube_length])
+        cube_coord[3] = np.array([cube_length, 0.5*cube_length, -0.5*cube_length])
+        
+        #Top 4 points, going counter-clockwise from top left corner
+        cube_coord[4] = np.array([0, 0.5*cube_length, 0.5*cube_length])
+        cube_coord[5] = np.array([0, -0.5*cube_length, 0.5*cube_length])
+        cube_coord[6] = np.array([cube_length, -0.5*cube_length, 0.5*cube_length])
+        cube_coord[7] = np.array([cube_length, 0.5*cube_length, 0.5*cube_length])        
+
+        cube_in_map = np.zeros((8,3))
+        #Transforming Observable region to map origin
+        if self.tf.frameExists("/map") and self.tf.frameExists("/head_camera_tilt_link"):
+            for i in range(len(cube_coord)):
+                point_in_robot = geometry_msgs.msg.PoseStamped()
+                point_in_robot.pose.position.x = cube_coord[i][0]
+                point_in_robot.pose.position.y = cube_coord[i][1]
+                point_in_robot.pose.position.z = cube_coord[i][2]
+                point_in_robot.pose.orientation.x = 0
+                point_in_robot.pose.orientation.y = 0
+                point_in_robot.pose.orientation.z = 0
+                point_in_robot.pose.orientation.w = 1
+
+                point_in_robot.header.frame_id = "head_camera_tilt_link"
+                point_in_robot.header.stamp = rospy.Time.now()
+
+                point_transformed = self.tf_listener.transformPose('/map', point_in_robot)
+            # self.transform_listener.waitForTransform("/head_camera_tilt_link", "/map", rospy.Time.now(), rospy.Duration(2.0))
+            # try:
+            #     pose_transformed = self.tf_listener.transformPose('/base_link', point_in_robot)
+            # except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException, Exception) as e:
+            #     rospy.loginfo("TF Exception... {}".format(e))
+            #     return
+                cube_in_map[i][0] = point_transformed.pose.position.x
+                cube_in_map[i][1] = point_transformed.pose.position.y
+                cube_in_map[i][2] = point_transformed.pose.position.z
+
+        print(cube_in_map) #Observable region in map
+
+        for _,filter in self.object_filters.items():
+            for detection in object_detections:
+
+                min_x = np.amin(cube_in_map[:,0])
+                max_x = np.amax(cube_in_map[:,0])
+                min_y = np.amin(cube_in_map[:,1])
+                max_y = np.amax(cube_in_map[:,1])
+                min_z = np.amin(cube_in_map[:,2])   
+                max_z = np.amax(cube_in_map[:,2])
+                
+                if filter.label == detection.label & self.check_point_in_cube(cube_in_map, point):
+                    reg = Region("{}_valid_reg_{}".format(filter.label, len(self.valid_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
+                    filter.add_valid_region(reg)
+                    self.valid_regions.add(reg)
+                
+                else:                    
+                    reg = Region("{}_neg_reg_{}".format(filter.label, len(self.neg_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
+                    filter.add_negative_region(reg)
+                    self.neg_regions.add(reg)
+
+        #if region has a detection
+        #then add the region to vali region for that object
+        #cycle through all other objects
+        #add this region as a negative region for all others
+        
         pos_added = []
         for _, filter in self.object_filters.items():
             try:
@@ -290,7 +373,53 @@ class SFMClient():
                 rospy.logwarn("Adding neg region to {}".format(filter.label))
                 filter.add_negative_region(reg)
                 self.neg_regions.add(reg)
-        return False
+        
+        # cur_pose = self.state.pose
+        # min_x = cur_pose.position.x - 2
+        # max_x = cur_pose.position.x + 2
+        # min_y = cur_pose.position.y - 2
+        # max_y = cur_pose.position.y + 2
+        # min_z = 0
+        # max_z = 2.0
+        # reg = Region("neg_reg_{}".format(len(self.neg_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
+        # region_added = False
+        # pos_added = []
+        # for _, filter in self.object_filters.items():
+        #     try:
+        #         for obs in self.experiment_config['observations']:
+        #             rospy.logwarn("{} location is ({}, {})".format(obs['name'], obs['x'], obs['y']))
+        #             # if obs['name'] != filter.label:
+        #             #     continue
+        #             x_err =  (obs['x'] - self.state.pose.position.x)**2
+        #             y_err = (obs['y'] - self.state.pose.position.y)**2
+        #             if np.sqrt(x_err + y_err ) <= 1 and obs['name'] == filter.label:
+        #                 if frame == 'grasp_spoon' and filter.label == 'spoon':
+        #                 # simulate completed action
+        #                     rospy.logwarn("Successfully completed {}".format(frame))
+        #                     return True
+        #                 elif frame == 'stir_cup' and filter.label == 'cup':
+        #                     rospy.logwarn("Successfully completed {}".format(frame))
+        #                     return True
+        #                 elif frame == 'grasp_cup' and filter.label == 'cup':
+        #                     rospy.logwarn("Adding observation to {} dist to obj is {}".format(filter.label, np.sqrt(x_err+y_err)))
+        #                     filter.add_observation_from_config(obs['x'], obs['y'], obs['z'])
+        #                     pos_added.append(filter.label)
+        #                     # rospy.logwarn("Successfully completed {}".format(frame))
+        #                     # return True
+        #             elif np.sqrt(x_err + y_err) < 5 and obs['name'] == filter.label:
+        #                 rospy.logwarn("Adding observation to {} dist to obj is {}".format(filter.label, np.sqrt(x_err+y_err)))
+        #                 filter.add_observation_from_config(obs['x'], obs['y'], obs['z'])
+        #                 pos_added.append(filter.label)
+
+        #     except KeyError:
+        #         # no observations defined in the experiment
+        #         pass
+        # for _, filter in self.object_filters.items():
+        #     if filter.label not in pos_added:
+        #         rospy.logwarn("Adding neg region to {}".format(filter.label))
+        #         filter.add_negative_region(reg)
+        #         self.neg_regions.add(reg)
+        # return False
 
     def dist(self, robot, obj):
         x_dist = np.abs(robot.position.x - obj.x)

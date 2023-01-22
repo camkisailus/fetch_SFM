@@ -615,6 +615,52 @@ class ObjectParticleFilter(ParticleFilter):
         # rospy.logwarn("{} had {} particles w 0 weight".format(self.label, count))
         self.weights = self.weights / np.sum(self.weights)
            
+    def handle_observations(self, robot_pose):
+        #Observable region is cube
+        cube_length = 2
+        #Constructing a cube in Camera Tilt Link
+        cube_coord = np.zeros((8,3))
+        #Bottom 4 points, going counter-clockwise from bottom left corner
+        cube_coord[0] = np.array([0, 0.5*cube_length, -0.5*cube_length])
+        cube_coord[1] = np.array([0, -0.5*cube_length, -0.5*cube_length])
+        cube_coord[2] = np.array([cube_length, -0.5*cube_length, -0.5*cube_length])
+        cube_coord[3] = np.array([cube_length, 0.5*cube_length, -0.5*cube_length])
+        
+        #Top 4 points, going counter-clockwise from top left corner
+        cube_coord[4] = np.array([0, 0.5*cube_length, 0.5*cube_length])
+        cube_coord[5] = np.array([0, -0.5*cube_length, 0.5*cube_length])
+        cube_coord[6] = np.array([cube_length, -0.5*cube_length, 0.5*cube_length])
+        cube_coord[7] = np.array([cube_length, 0.5*cube_length, 0.5*cube_length])        
+
+        cube_in_map = np.zeros((8,3))
+        #Transforming Observable region to map origin
+        if self.tf.frameExists("/map") and self.tf.frameExists("/head_camera_tilt_link"):
+            for i in range(len(cube_coord)):
+                point_in_robot = geometry_msgs.msg.PoseStamped()
+                point_in_robot.pose.position.x = cube_coord[i][0]
+                point_in_robot.pose.position.y = cube_coord[i][1]
+                point_in_robot.pose.position.z = cube_coord[i][2]
+                point_in_robot.pose.orientation.x = 0
+                point_in_robot.pose.orientation.y = 0
+                point_in_robot.pose.orientation.z = 0
+                point_in_robot.pose.orientation.w = 1
+
+                point_in_robot.header.frame_id = "head_camera_tilt_link"
+                point_in_robot.header.stamp = rospy.Time.now()
+
+                point_transformed = self.tf_listener.transformPose('/map', point_in_robot)
+            # self.transform_listener.waitForTransform("/head_camera_tilt_link", "/map", rospy.Time.now(), rospy.Duration(2.0))
+            # try:
+            #     pose_transformed = self.tf_listener.transformPose('/base_link', point_in_robot)
+            # except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException, Exception) as e:
+            #     rospy.loginfo("TF Exception... {}".format(e))
+            #     return
+                cube_in_map[i][0] = point_transformed.pose.position.x
+                cube_in_map[i][1] = point_transformed.pose.position.y
+                cube_in_map[i][2] = point_transformed.pose.position.z
+
+        for all the detections and particles, match the detections and add negative and observable subregions        
+
 class FrameParticleFilter(ParticleFilter):
     def __init__(self, n, label, preconditions, core_frame_elements, valid_regions=None):
         super(FrameParticleFilter, self).__init__(n, label, valid_regions)
@@ -806,3 +852,5 @@ class FrameParticleFilter(ParticleFilter):
 
 
 
+# Add regions to the detections datatype
+# If the region added has no detection or no detection of that label in region then add it to list
