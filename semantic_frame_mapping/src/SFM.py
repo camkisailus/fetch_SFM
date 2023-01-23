@@ -77,15 +77,15 @@ class ActionClient():
         self.move_base_client = actionlib.SimpleActionClient("kisailus_move_base", MoveBaseRequestAction)
         self.move_base_client.wait_for_server()
         rospy.logwarn("Connected to move_base server")
-        self.torso_client = actionlib.SimpleActionClient("kisailus_torso_controller", TorsoControlRequestAction)
-        self.torso_client.wait_for_server()
-        rospy.logwarn("Connected to torso client")
+        # self.torso_client = actionlib.SimpleActionClient("kisailus_torso_controller", TorsoControlRequestAction)
+        # self.torso_client.wait_for_server()
+        # rospy.logwarn("Connected to torso client")
         self.point_head_client = actionlib.SimpleActionClient("kisailus_point_head", PointHeadRequestAction)
         self.point_head_client.wait_for_server()
         rospy.logwarn("Connected to point head client")
-        self.pick_client = actionlib.SimpleActionClient("kisailus_pick", PickRequestAction)
-        self.pick_client.wait_for_server()
-        rospy.logwarn("Connected to pick server")
+        # self.pick_client = actionlib.SimpleActionClient("kisailus_pick", PickRequestAction)
+        # self.pick_client.wait_for_server()
+        # rospy.logwarn("Connected to pick server")
         # self.pick_sub = rospy.Subscriber("pick", Bool, self.pick_from_cmd)
         # self.tf_listener = tf.TransformListener()
         # self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
@@ -586,13 +586,21 @@ class SFMClient():
         # self.ac.pick(mode=2) # mode == 2 --> place
         # self.ac.pick(mode=1) # mode == 1 --> tuck_arm
         # self.ac.move_torso(0.0)
-        
+        self.update_filters(publish=True)
         while not rospy.is_shutdown():
-            if self.update:
-                self.update_filters(publish=True)
-                self.publish_regions()
+            update = input("Do you want to update? (Y/n)")
+            if update.upper() == 'Y':
+                rospy.loginfo("Updating filters")
+                for i in range(10):
+                    self.update_filters(publish=True)
+                    self.publish_regions()
             else:
                 pass
+            # if self.update:
+            #     self.update_filters(publish=True)
+            #     self.publish_regions()
+            # else:
+            #     pass
 
         # for step in self.experiment_config['steps']:
         #     if step == "Update Filters":
