@@ -2,173 +2,35 @@
 
 import rospy
 
+from executor import Executor
+
 from particle_filters import *
 from utils import *
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Point, PoseWithCovarianceStamped, Pose, PoseStamped, Quaternion
 from std_msgs.msg import String, Int8
-from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal
 from nav_msgs.srv import GetPlan, GetPlanResponse
 from grasploc_wrapper_msgs.msg import GrasplocRequestAction, GrasplocRequestGoal
 from gazebo_msgs.srv import SetModelState, SetModelStateResponse
 from gazebo_msgs.srv import SpawnModel, SpawnModelResponse
-from gazebo_msgs.msg import ModelState
-# import tf
+from gazebo_msgs.msg import ModelState      
 
-class State():
-    def __init__(self, action_history):
-        self.action_history = action_history
-        self.ah_sub = rospy.Subscriber("/add_action_to_action_history", String, self.add_action_to_action_history)
-        self.robot_pose_sub = rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.update_pose)
-        self.pose = Pose()
 
-    def update_pose(self, pose_msg):
-        self.pose = pose_msg.pose.pose
-    
-    def add_action_to_action_history(self, action_taken):
-        try:
-            self.action_history.append(action_taken.data)
-        except AttributeError:
-            self.action_history.append(action_taken)
-
-class Region():
-    def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z):
-        self.name = name
-        self.min_x = min_x
-        self.max_x = max_x
-        self.min_y = min_y
-        self.max_y = max_y
-        self.min_z = min_z
-        self.max_z = max_z
-        self.pub = rospy.Publisher("/region/{}".format(name), Marker, queue_size=1)
-        self.marker = Marker()
-        self.marker.id = 0
-        self.marker.header.frame_id = 'map'
-        if name.startswith("neg"):
-            self.marker.color.r = 1
-        
-        self.marker.color.a = 0.5
-        self.marker.type = Marker.CUBE
-        self.marker.action = Marker.ADD
-        self.marker.lifetime = rospy.Duration(0)
-        self.marker.pose.position.x = (min_x + max_x)/2
-        self.marker.pose.position.y = (min_y + max_y)/2
-        self.marker.pose.position.z = (min_z + max_z)/2
-        self.marker.pose.orientation.w = 1.0
-        self.marker.scale.x = max_x - min_x
-        self.marker.scale.y = max_y - min_y
-        self.marker.scale.z = max_z - min_z
-        self.pub.publish(self.marker)
-    
-    def __hash__(self):
-        return hash(self.name)
-
-    def publish(self):
-        self.pub.publish(self.marker)        
-    
-    def get_bounds(self):
-        return (self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z)
-    
-
-class ActionClient():
-    def __init__(self):
-        # self.make_plan_client = rospy.ServiceProxy('move_base/make_plan', GetPlan)
-
-        self.move_base_client = actionlib.SimpleActionClient("kisailus_move_base", MoveBaseRequestAction)
-        self.move_base_client.wait_for_server()
-        rospy.logwarn("Connected to move_base server")
-        self.torso_client = actionlib.SimpleActionClient("kisailus_torso_controller", TorsoControlRequestAction)
-        self.torso_client.wait_for_server()
-        rospy.logwarn("Connected to torso client")
-        self.point_head_client = actionlib.SimpleActionClient("kisailus_point_head", PointHeadRequestAction)
-        self.point_head_client.wait_for_server()
-        rospy.logwarn("Connected to point head client")
-        self.pick_client = actionlib.SimpleActionClient("kisailus_pick", PickRequestAction)
-        self.pick_client.wait_for_server()
-        rospy.logwarn("Connected to pick server")
-        # self.pick_sub = rospy.Subscriber("pick", Bool, self.pick_from_cmd)
-        # self.tf_listener = tf.TransformListener()
-        # self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
-        # self.point_head_pub = rospy.Publisher('/point_head/at', Point, queue_size=10)
-        # self.cur_pose_sub = rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.pose_cb)
-        # self.cur_pose = Pose()
-
-    def pose_cb(self, pose_msg):
-        self.cur_pose = pose_msg.pose.pose
-
-    def get_pose(self):
-        return self.cur_pose
-
-    def go_to(self, x, y, theta):
-        request = MoveBaseRequestGoal()
-        request.x = x
-        request.y = y
-        request.theta = theta
-        self.move_base_client.send_goal(request)
-        self.move_base_client.wait_for_result()
-        return self.move_base_client.get_result()
-
-    def move_torso(self, height):
-        request = TorsoControlRequestGoal()
-        request.height = height
-        self.torso_client.send_goal(request)
-        self.torso_client.wait_for_result()
-        return self.torso_client.get_result()
-    
-    def point_head(self, x, y, z):
-        request = PointHeadRequestGoal()
-        request.x = x
-        request.y = y
-        request.z = z
-        self.point_head_client.send_goal(request)
-        self.point_head_client.wait_for_result()
-    
-    # def pick_from_cmd(self, msg):
-    #     self.pick(mode=0)
-    
-    def pick(self, mode=0, goal=None):
-        request = PickRequestGoal()
-        request.mode = mode
-        if goal:
-           request.pick_pose = goal # this is particle loc in map frame
-        self.pick_client.send_goal(request)
-        rospy.loginfo("Sent pick_client goal")
-        self.pick_client.wait_for_result()
-        res = self.pick_client.get_result()
-        return res
-
-        # request = PickRequestGoal()
-        # if mode == 1:
-        #     assert(goal is not None)
-        #     request.pick_pose = goal
-        # request.mode = int(mode)
-        # request.pick_pose = Pose()
-        # self.pick_client.send_goal(request)
-        # rospy.loginfo("Sent pick_client goal")
-        # self.pick_client.wait_for_result()
-    
-    # def tuck_arm(self):
-
-        
-    
-    
-class SFMClient():
+class SFMClient(Executor):
     def __init__(self, experiment_config=None):
+        super().__init__(experiment_config)
         # Experiment-specific stuff
         self.update = True
-        self.ac = ActionClient()
         self.neg_regions = set()
         self.regions = {}
-        self.experiment_config = experiment_config
         self.record = rospy.get_param("~record")
-        self.kb = init_knowledge_base(rospy.get_param('~sf_dir'), experiment_config['frames'])
-        self.state = State(experiment_config['action_history'])
-        for region in experiment_config['regions']:
+        self.kb = init_knowledge_base(rospy.get_param('~sf_dir'), self.experiment_config['frames'])
+        for region in self.experiment_config['regions']:
             self.regions[region['name']] = Region(region['name'], float(region['min_x']), float(region['max_x']), float(region['min_y']), float(region['max_y']), float(region['min_z']), float(region['max_z']))
         # TODO (kisailus): Give robot ground truth observations at init??
         self.observations = {}
         try:
-            for observation in experiment_config['observations']:
+            for observation in self.experiment_config['observations']:
                 # self.observations[]
                 self.object_filters[observation['name']].add_observation_from_config(observation['x'], observation['y'], observation['z'])
         except:
@@ -197,7 +59,7 @@ class SFMClient():
             for precondition in frame.preconditions:
                 print("Adding {} for {}".format(precondition, frame.name))
                 self.frame_filters[frame.name].add_precondition(self.frame_filters[precondition], precondition)
-
+        rospy.logwarn("SFM INIT DONE")
         # ROS subscribers
         self.start_exp_sub = rospy.Subscriber("/start_experiment", String, self.run)
         self.execute_frame_sub = rospy.Subscriber("/execute", String, self.execute_frame)
@@ -624,124 +486,9 @@ class SFMClient():
 
 if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
-    
-    # ac = ActionClient()
-    # Move the base to be in front of the table
-    # Demonstrates the use of the navigation stack
-    # rospy.loginfo("Moving to table...")
-    # ac.go_to(6, -5.4, -1.57079632679)
-    # move_base.goto(2.750, 3.118, 0.0)
-
-    # # Raise the torso using just a controller
-    # rospy.loginfo("Raising torso...")
-    # ac.move_torso(0.4)
-
-    # # Point the head at the cube we want to pick
-    # ac.point_head(6.8, -6, 0.8)
-
-    # ac.pick(mode=0)
-    # ac.pick(mode=1) # mode == 1 --> tuck_arm
-    # ac.move_torso(0.0)
-    
-
-    # # Get block to pick
-    # while not rospy.is_shutdown():
-    #     rospy.loginfo("Picking object...")
-    #     grasping_client.updateScene()
-    #     cube, grasps = grasping_client.getGraspableCube()
-    #     if cube == None:
-    #         rospy.logwarn("Perception failed.")
-    #         continue
-
-    #     # Pick the block
-    #     if grasping_client.pick(cube, grasps):
-    #         break
-    #     rospy.logwarn("Grasping failed.")
-
-    # # # Tuck the arm
-    # grasping_client.tuck()
-
-    # # # Lower torso
-    # rospy.loginfo("Lowering torso...")
-    # torso_action.move_to([0.0, ])
-
-    # rospy.loginfo("Done!")
-    # gloc_client = actionlib.SimpleActionClient('grasploc_requests', GrasplocRequestAction)
-    # gloc_client.wait_for_server()
-    # goal = GrasplocRequestGoal()
-    # goal.tmp = 0
-    # gloc_client.send_goal(goal)
-    # gloc_client.wait_for_result()
-    # result = gloc_client.get_result()
-    # print(result)
-
-    """
-    ac = ActionClient()
-    # siny_cosp = 2 * (0.832 * -0.490778743358)
-    # cosy_cosp = 1 - 2*(-0.490778743358**2)
-    # t = np.arctan2(siny_cosp, cosy_cosp) - 0.6
-    
-    # ac.go_to(-5.988, -33.000, -2.657)
-    # ready_pose = Pose()
-    # ready_pose.position.x = 0.388766448993
-    # ready_pose.position.y = 0.378542124739
-    # ready_pose.position.z = 1.04805824777
-    # ready_pose.orientation.x = -0.0978119668855
-    # ready_pose.orientation.y = 0.586970796926
-    # ready_pose.orientation.z = 0.0532830679297
-    # ready_pose.orientation.w = 0.801909606727
-    # ac.pick(mode=0,goal=ready_pose)
-    # pre_grasp_pose = Pose()
-    # pre_grasp_pose.position.x = 0.706376829351
-    # pre_grasp_pose.position.y = 0.327823473247
-    # pre_grasp_pose.position.z = 0.942892063785
-    # pre_grasp_pose.orientation.x = -0.000825113383771
-    # pre_grasp_pose.orientation.y = 0.0465757301487
-    # pre_grasp_pose.orientation.z = -0.598691337224
-    # pre_grasp_pose.orientation.w = 0.799624101239
-    # ac.pick(mode=0, goal=pre_grasp_pose)
-    # grasp_pose = Pose()
-    # grasp_pose.position.x = 0.730670415859
-    # grasp_pose.position.y = 0.0817700400619
-    # grasp_pose.position.z = 0.944080491806
-    # grasp_pose.orientation.x = -0.0586105500584
-    # grasp_pose.orientation.y = -0.00751916695798
-    # grasp_pose.orientation.z = -0.618539099892
-    # grasp_pose.orientation.w = 0.783528970399
-    # ac.pick(mode=1, goal=grasp_pose)
-    drop_pose = Pose()
-    drop_pose.position.x = 0.742431761974
-    drop_pose.position.y = 0.166189923673
-    drop_pose.position.z = 1.211409257298
-    drop_pose.orientation.x = 0.0964181423434
-    drop_pose.orientation.y = 0.0668233573068
-    drop_pose.orientation.z = -0.600939682408
-    drop_pose.orientation.w = 0.790638778996
-    ac.pick(mode=0, goal=drop_pose)
-    """
-
-
 
     with open(rospy.get_param("~experiment_config"), 'r') as file:
         experiment_config = yaml.safe_load(file)
     foo = SFMClient(experiment_config)
     rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(experiment_config['title']))
     foo.run()
-    
-    # r = rospy.Rate(1000)
-    # i = 0
-    # while not rospy.is_shutdown():
-    #     rospy.spin()
-    #     if i < 20:
-    #     #     print("ITR: {}".format(i+1))
-    #     #     # if i == 100:
-    #     #     #     foo.go_to()
-    #     #     # rospy.loginfo("Updating...")
-    #     foo.update_filters()
-    #     foo.publish_regions()
-    #     #     # print(foo.state.action_history)
-    #     #     # rospy.loginfo(i)
-    #     #     # if i == 10:
-    #     #     #     foo.frame_filters['grasp_bottle'].bgmm()
-    #     #     i+=1
-    #     r.sleep()
