@@ -8,6 +8,7 @@ from std_msgs.msg import Bool
 from geometry_msgs.msg import Point, PoseWithCovarianceStamped, Pose
 from std_msgs.msg import String, Int8
 from fetch_actions.msg import MoveBaseRequestAction, MoveBaseRequestGoal, TorsoControlRequestAction, TorsoControlRequestGoal, PointHeadRequestAction, PointHeadRequestGoal, PickRequestAction, PickRequestGoal
+import tf
 
 class State():
     def __init__(self, action_history):
@@ -38,7 +39,7 @@ class Region():
         self.marker = Marker()
         self.marker.id = 0
         self.marker.header.frame_id = 'map'
-        if name.startswith("neg"):
+        if "neg" in name:
             self.marker.color.r = 1
         
         self.marker.color.a = 0.5
@@ -171,6 +172,8 @@ class SFMClient():
         self.start_exp_sub = rospy.Subscriber("/start_experiment", String, self.run)
         self.execute_frame_sub = rospy.Subscriber("/execute", String, self.execute_frame)
         self.update_filters_sub = rospy.Subscriber("/update_filters", Int8, self.update_filters)
+        self.update_filters_sub = rospy.Subscriber("/run_observation_routine", Bool, self.run_observation_routine_cb)
+        self.tf_listener = tf.TransformListener()
         
 
 
@@ -259,7 +262,10 @@ class SFMClient():
         else :
             return False
 
-    def run_observation_routine(self, object_detections, frame=None):  #added object_detections as input
+    def run_observation_routine_cb(self, msg):
+        self.run_observation_routine()
+
+    def run_observation_routine(self, object_detections=[], frame=None):  #added object_detections as input
         """
         This is a simulated object detection method
          
@@ -285,7 +291,18 @@ class SFMClient():
 
         cube_in_map = np.zeros((8,3))
         #Transforming Observable region to map origin
-        if self.tf.frameExists("/map") and self.tf.frameExists("/head_camera_tilt_link"):
+        # rospy.logwarn("Map exists? {}".format(self.tf_listener.frameExists("/map")))
+        # rospy.logwarn("Head tilt link exists? {}".format(self.tf_listener.frameExists("/head_tilt_link")))
+        self.tf_listener.waitForTransform("/head_tilt_link", "/map", rospy.Time.now(), rospy.Duration(2.0))
+        # if self.tf_listener.frameExists("/map") and self.tf_listener.frameExists("/head_tilt_link"):
+        try:
+            position, quaternion = self.tf_listener.lookupTransform(
+                "/head_tilt_link",
+                "/map",
+                self.tf_listener.getLatestCommonTime("/head_tilt_link", "/map")
+            )
+            rospy.logwarn("Current transform: {} quat: {}".format(position, quaternion))
+            rospy.logwarn("Transforming cube to map frame")
             for i in range(len(cube_coord)):
                 point_in_robot = geometry_msgs.msg.PoseStamped()
                 point_in_robot.pose.position.x = cube_coord[i][0]
@@ -296,8 +313,8 @@ class SFMClient():
                 point_in_robot.pose.orientation.z = 0
                 point_in_robot.pose.orientation.w = 1
 
-                point_in_robot.header.frame_id = "head_camera_tilt_link"
-                point_in_robot.header.stamp = rospy.Time.now()
+                point_in_robot.header.frame_id = "/head_tilt_link"
+                point_in_robot.header.stamp = self.tf_listener.getLatestCommonTime("/head_tilt_link", "/map")
 
                 point_transformed = self.tf_listener.transformPose('/map', point_in_robot)
             # self.transform_listener.waitForTransform("/head_camera_tilt_link", "/map", rospy.Time.now(), rospy.Duration(2.0))
@@ -309,6 +326,9 @@ class SFMClient():
                 cube_in_map[i][0] = point_transformed.pose.position.x
                 cube_in_map[i][1] = point_transformed.pose.position.y
                 cube_in_map[i][2] = point_transformed.pose.position.z
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException, Exception) as e:
+            rospy.loginfo("TF Exception... {}".format(e))
+            return
 
         print(cube_in_map) #Observable region in map
 
@@ -328,16 +348,17 @@ class SFMClient():
                 
                 #point = np.array([detection.pose.position.x, detection.pose.position.y, detection.pose.position.z])
 
-            if not obj_seen: #and not self.check_point_in_cube(cube_in_map, point):                    
+            if not obj_seen: #and not self.check_point_in_cube(cube_in_map, point):  
                 min_x = np.amin(cube_in_map[:,0])
                 max_x = np.amax(cube_in_map[:,0])
                 min_y = np.amin(cube_in_map[:,1])
                 max_y = np.amax(cube_in_map[:,1])
                 min_z = np.amin(cube_in_map[:,2])   
                 max_z = np.amax(cube_in_map[:,2])
-                reg = Region("{}_neg_reg_{}".format(filter.label, len(self.neg_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
+                reg = Region("{}_neg_reg_{}".format(filter.label, len(filter.negative_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
+                rospy.logwarn("Adding negative Region")                  
                 filter.add_negative_region(reg)
-                self.neg_regions.add(reg)
+                # self.neg_regions.add(reg)
 
         #if region has a detection
         #then add the region to valid region for that object
@@ -546,9 +567,15 @@ class SFMClient():
         rospy.logwarn("Done!")
 
     def testNegativeRegions(self):
-        run = input("Press y to run obersvation rountine ")
-        if run.upper() == "Y":
-            self.run_observation_routine(self, object_detections=[], frame=None)
+        while True:
+            self.update_filters()
+        # run = input("Press y to run obersvation rountine ")
+        # if run.upper() == "Y":
+        #     self.run_observation_routine(object_detections=[], frame=None)
+        #     self.update_filters()
+        # while True:
+        #     self.update_filters()
+            # self.object_filters['mustard_bottle'].publish()
 
 if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
@@ -601,7 +628,7 @@ if __name__ == '__main__':
         experiment_config = yaml.safe_load(file)
     foo = SFMClient(experiment_config)
     rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(experiment_config['title']))
-    foo.testNegativeRegions()
+    # foo.testNegativeRegions()
     
     r = rospy.Rate(1000)
     i = 0

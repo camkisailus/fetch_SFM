@@ -15,28 +15,13 @@ objects:
     priors:
       - name: "lab"
         weight: 1.0
-  - name: "cracker_box"
-    priors:
-      - name: "lab"
-        weight: 1.0
-  - name: "master_chef_can"
-    priors:
-      - name: "lab"
-        weight: 1.0 
-  # - name: "sugar_box"
-  #   priors:
-  #     - name: "lab"
-  #       weight: 1.0
-  - name: "mug"
-    priors:
-      - name: "lab"
-        weight: 1.0
+  # - name:must
 frames:
   - "grasp_mustard_bottle"
-  - "grasp_master_chef_can"
-  - "grasp_cracker_box"
-  - "grasp_mug"
-  - "make_coffee"
+  # - "grasp_master_chef_can"
+  # - "grasp_cracker_box"
+  # - "grasp_mug"
+  # - "make_coffee"
   # - "pour_coffee_mug"
   # - "make_coffee"
   #- "grasp_cup"
