@@ -259,7 +259,7 @@ class SFMClient():
         else :
             return False
 
-    def run_observation_routine(self, frame=None):
+    def run_observation_routine(self, object_detections, frame=None):  #added object_detections as input
         """
         This is a simulated object detection method
          
@@ -322,57 +322,22 @@ class SFMClient():
                 min_z = np.amin(cube_in_map[:,2])   
                 max_z = np.amax(cube_in_map[:,2])
                 
-                if filter.label == detection.label & self.check_point_in_cube(cube_in_map, point):
-                    reg = Region("{}_valid_reg_{}".format(filter.label, len(self.valid_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
-                    filter.add_valid_region(reg)
-                    self.valid_regions.add(reg)
+                # if filter.label == detection.label and self.check_point_in_cube(cube_in_map, point):
+                #     reg = Region("{}_valid_reg_{}".format(filter.label, len(self.valid_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
+                #     filter.add_valid_region(reg)
+                #     self.valid_regions.add(reg)
                 
-                else:                    
+                point = np.array([detection.pose.position.x, detection.pose.position.y, detection.pose.position.z])
+
+                if filter.label == detection.label and not self.check_point_in_cube(cube_in_map, point):                    
                     reg = Region("{}_neg_reg_{}".format(filter.label, len(self.neg_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
                     filter.add_negative_region(reg)
                     self.neg_regions.add(reg)
 
         #if region has a detection
-        #then add the region to vali region for that object
+        #then add the region to valid region for that object
         #cycle through all other objects
         #add this region as a negative region for all others
-        
-        pos_added = []
-        for _, filter in self.object_filters.items():
-            try:
-                for obs in self.experiment_config['observations']:
-                    rospy.logwarn("{} location is ({}, {})".format(obs['name'], obs['x'], obs['y']))
-                    # if obs['name'] != filter.label:
-                    #     continue
-                    x_err =  (obs['x'] - self.state.pose.position.x)**2
-                    y_err = (obs['y'] - self.state.pose.position.y)**2
-                    if np.sqrt(x_err + y_err ) <= 1 and obs['name'] == filter.label:
-                        if frame == 'grasp_spoon' and filter.label == 'spoon':
-                        # simulate completed action
-                            rospy.logwarn("Successfully completed {}".format(frame))
-                            return True
-                        elif frame == 'stir_cup' and filter.label == 'cup':
-                            rospy.logwarn("Successfully completed {}".format(frame))
-                            return True
-                        elif frame == 'grasp_cup' and filter.label == 'cup':
-                            rospy.logwarn("Adding observation to {} dist to obj is {}".format(filter.label, np.sqrt(x_err+y_err)))
-                            filter.add_observation_from_config(obs['x'], obs['y'], obs['z'])
-                            pos_added.append(filter.label)
-                            # rospy.logwarn("Successfully completed {}".format(frame))
-                            # return True
-                    elif np.sqrt(x_err + y_err) < 5 and obs['name'] == filter.label:
-                        rospy.logwarn("Adding observation to {} dist to obj is {}".format(filter.label, np.sqrt(x_err+y_err)))
-                        filter.add_observation_from_config(obs['x'], obs['y'], obs['z'])
-                        pos_added.append(filter.label)
-
-            except KeyError:
-                # no observations defined in the experiment
-                pass
-        for _, filter in self.object_filters.items():
-            if filter.label not in pos_added:
-                rospy.logwarn("Adding neg region to {}".format(filter.label))
-                filter.add_negative_region(reg)
-                self.neg_regions.add(reg)
         
         # cur_pose = self.state.pose
         # min_x = cur_pose.position.x - 2
