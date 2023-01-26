@@ -313,26 +313,31 @@ class SFMClient():
         print(cube_in_map) #Observable region in map
 
         for _,filter in self.object_filters.items():
+            obj_seen = False
             for detection in object_detections:
+                if self.label == detection.label:
+                    obj_seen = True
+                    ## Add observation to filter
 
-                min_x = np.amin(cube_in_map[:,0])
-                max_x = np.amax(cube_in_map[:,0])
-                min_y = np.amin(cube_in_map[:,1])
-                max_y = np.amax(cube_in_map[:,1])
-                min_z = np.amin(cube_in_map[:,2])   
-                max_z = np.amax(cube_in_map[:,2])
+                    break
                 
                 # if filter.label == detection.label and self.check_point_in_cube(cube_in_map, point):
                 #     reg = Region("{}_valid_reg_{}".format(filter.label, len(self.valid_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
                 #     filter.add_valid_region(reg)
                 #     self.valid_regions.add(reg)
                 
-                point = np.array([detection.pose.position.x, detection.pose.position.y, detection.pose.position.z])
+                #point = np.array([detection.pose.position.x, detection.pose.position.y, detection.pose.position.z])
 
-                if filter.label == detection.label and not self.check_point_in_cube(cube_in_map, point):                    
-                    reg = Region("{}_neg_reg_{}".format(filter.label, len(self.neg_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
-                    filter.add_negative_region(reg)
-                    self.neg_regions.add(reg)
+            if not obj_seen: #and not self.check_point_in_cube(cube_in_map, point):                    
+                min_x = np.amin(cube_in_map[:,0])
+                max_x = np.amax(cube_in_map[:,0])
+                min_y = np.amin(cube_in_map[:,1])
+                max_y = np.amax(cube_in_map[:,1])
+                min_z = np.amin(cube_in_map[:,2])   
+                max_z = np.amax(cube_in_map[:,2])
+                reg = Region("{}_neg_reg_{}".format(filter.label, len(self.neg_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
+                filter.add_negative_region(reg)
+                self.neg_regions.add(reg)
 
         #if region has a detection
         #then add the region to valid region for that object
@@ -540,7 +545,10 @@ class SFMClient():
                     foo.add_observations()
         rospy.logwarn("Done!")
 
-        
+    def testNegativeRegions(self):
+        run = input("Press y to run obersvation rountine ")
+        if run.upper() == "Y":
+            self.run_observation_routine(self, object_detections=[], frame=None)
 
 if __name__ == '__main__':
     rospy.init_node('sematic_frame_mapping_node')
@@ -593,7 +601,7 @@ if __name__ == '__main__':
         experiment_config = yaml.safe_load(file)
     foo = SFMClient(experiment_config)
     rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(experiment_config['title']))
-    
+    foo.testNegativeRegions()
     
     r = rospy.Rate(1000)
     i = 0
