@@ -27,7 +27,7 @@ class State():
             self.action_history.append(action_taken)
 
 class Region():
-    def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z, cube_in_map):
+    def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z, cube_in_map=None):
         self.name = name
         self.min_x = min_x
         self.max_x = max_x
@@ -35,87 +35,116 @@ class Region():
         self.max_y = max_y
         self.min_z = min_z
         self.max_z = max_z
-        self.pub = rospy.Publisher("/region/{}".format(name), Marker, queue_size=1)
-        self.marker = Marker()
-        self.marker.id = 0
-        self.marker.header.frame_id = 'map'
-        if "neg" in name:
-            self.marker.color.r = 1
         
-        self.marker.color.a = 0.5
-        self.marker.type = Marker.CUBE
-        self.marker.action = Marker.ADD
-        self.marker.lifetime = rospy.Duration(0)
-        self.marker.pose.position.x = (min_x + max_x)/2
-        self.marker.pose.position.y = (min_y + max_y)/2
-        self.marker.pose.position.z = (min_z + max_z)/2
-        self.marker.pose.orientation.w = 1.0
-        self.marker.scale.x = max_x - min_x
-        self.marker.scale.y = max_y - min_y
-        self.marker.scale.z = max_z - min_z
-        # self.pub.publish(self.marker)
+        if cube_in_map is None:
+            self.pub = rospy.Publisher("/region/{}".format(name), Marker, queue_size=1)
+            self.marker = Marker()
+            self.marker.id = 0
+            self.marker.header.frame_id = 'map'
+            if "neg" in name:
+                self.marker.color.r = 1
+            
+            self.marker.color.a = 0.5
+            self.marker.type = Marker.CUBE
+            self.marker.action = Marker.ADD
+            self.marker.lifetime = rospy.Duration(0)
+            self.marker.pose.position.x = (min_x + max_x)/2
+            self.marker.pose.position.y = (min_y + max_y)/2
+            self.marker.pose.position.z = (min_z + max_z)/2
+            self.marker.pose.orientation.w = 1.0
+            self.marker.scale.x = max_x - min_x
+            self.marker.scale.y = max_y - min_y
+            self.marker.scale.z = max_z - min_z
+            self.pub.publish(self.marker)
 
+        else:
+            self.pub = rospy.Publisher("/region/{}".format(name), MarkerArray, queue_size=1)
+            frame_id = "/map"
+            # self.marker_line_list(cube_in_map[0], cube_in_map[1], frame_id)
+            # self.marker_line_list(cube_in_map[1], cube_in_map[2], frame_id)
+            # self.marker_line_list(cube_in_map[2], cube_in_map[3], frame_id)
+            # self.marker_line_list(cube_in_map[3], cube_in_map[0], frame_id)
+            # self.marker_line_list(cube_in_map[4], cube_in_map[5], frame_id)
+            # self.marker_line_list(cube_in_map[5], cube_in_map[6], frame_id)
+            # self.marker_line_list(cube_in_map[6], cube_in_map[7], frame_id)
+            # self.marker_line_list(cube_in_map[7], cube_in_map[4], frame_id)
+            # self.marker_line_list(cube_in_map[0], cube_in_map[4], frame_id)
+            # self.marker_line_list(cube_in_map[1], cube_in_map[5], frame_id)
+            # self.marker_line_list(cube_in_map[2], cube_in_map[6], frame_id)
+            # self.marker_line_list(cube_in_map[3], cube_in_map[7], frame_id)
 
-        frame_id = "/map"
-        self.marker_line_list(cube_in_map[0], cube_in_map[1], frame_id)
-        self.marker_line_list(cube_in_map[1], cube_in_map[2], frame_id)
-        self.marker_line_list(cube_in_map[2], cube_in_map[3], frame_id)
-        self.marker_line_list(cube_in_map[3], cube_in_map[0], frame_id)
-        self.marker_line_list(cube_in_map[4], cube_in_map[5], frame_id)
-        self.marker_line_list(cube_in_map[5], cube_in_map[6], frame_id)
-        self.marker_line_list(cube_in_map[6], cube_in_map[7], frame_id)
-        self.marker_line_list(cube_in_map[7], cube_in_map[4], frame_id)
-        self.marker_line_list(cube_in_map[0], cube_in_map[4], frame_id)
-        self.marker_line_list(cube_in_map[1], cube_in_map[5], frame_id)
-        self.marker_line_list(cube_in_map[2], cube_in_map[6], frame_id)
-        self.marker_line_list(cube_in_map[3], cube_in_map[7], frame_id)
-
+            self.marker_array = MarkerArray()
+            self.marker_array_line_list(cube_in_map, frame_id)
         
+    def marker_array_line_list(self, cube_in_map, frame_id):
+        for i in range(0,4):
+            markerLL = self.marker_line_list(cube_in_map[i], cube_in_map[i+4], frame_id)
+            self.marker_array.markers.append(markerLL) #vertical edges
+
+            if i < 3:
+                markerLL = self.marker_line_list(cube_in_map[i], cube_in_map[i+1], frame_id)
+            else:
+                markerLL = self.marker_line_list(cube_in_map[3], cube_in_map[0], frame_id)
+
+            self.marker_array.markers.append(markerLL) #bottom edges
+
+        for i in range(4,8):
+            if i < 7:
+                markerLL = self.marker_line_list(cube_in_map[i], cube_in_map[i+1], frame_id)
+            else:
+                markerLL = self.marker_line_list(cube_in_map[7], cube_in_map[4], frame_id)
+
+            self.marker_array.markers.append(markerLL) #top edges
+
+        self.pub.publish(self.marker_array)              
 
 
     def marker_line_list(self, point1, point2, frame_id):
-        self.marker = Marker()
-        self.marker.header.frame_id = frame_id
-        self.marker.type = self.marker.LINE_LIST
-        self.marker.color.a = 1.0
-        self.marker.action = self.marker.ADD
+        marker = Marker()
+        marker.header.frame_id = frame_id
+        marker.type = marker.LINE_LIST
+        marker.color.a = 1.0
+        marker.action = marker.ADD
 
         #marker scale
-        self.marker.scale.x = 0.1
+        marker.scale.x = 0.1
+        marker.scale.y = 0.1
+        marker.scale.z = 0.1
 
         #marker color
-        self.marker.color.a = 1
+        marker.color.a = 1
 
         #marker orientation
-        self.marker.pose.orientation.x = 0.0
-        self.marker.pose.orientation.y = 0.0
-        self.marker.pose.orientation.z = 0.0
-        self.marker.pose.orientation.w = 1.0
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
 
         #marker position
-        self.marker.pose.position.x = 0.0
-        self.marker.pose.position.y = 0.0
-        self.marker.pose.position.z = 0.0
+        marker.pose.position.x = 0.0
+        marker.pose.position.y = 0.0
+        marker.pose.position.z = 0.0
 
         #marker line points
-        self.marker.points =[]
+        marker.points =[]
 
         #first point
         first_point = Point()
-        first_point.x = point1[0][0]
-        first_point.y = point1[0][1]
-        first_point.z = point1[0][2]
-        self.marker.points.append(first_point)
+        first_point.x = point1[0]
+        first_point.y = point1[1]
+        first_point.z = point1[2]
+        marker.points.append(first_point)
 
 
         #second point
         second_point = Point()
-        second_point.x = point1[0][0]
-        second_point.y = point1[0][1]
-        second_point.z = point1[0][2]
-        self.marker.points.append(second_point)
+        second_point.x = point2[0]
+        second_point.y = point2[1]
+        second_point.z = point2[2]
+        marker.points.append(second_point)
 
-        self.pub.publish(self.marker)
+        # self.pub.publish(self.marker)
+        return marker
 
     def __hash__(self):
         return hash(self.name)
