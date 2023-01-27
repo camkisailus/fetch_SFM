@@ -27,7 +27,7 @@ class State():
             self.action_history.append(action_taken)
 
 class Region():
-    def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z):
+    def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z, cube_in_map):
         self.name = name
         self.min_x = min_x
         self.max_x = max_x
@@ -53,8 +53,70 @@ class Region():
         self.marker.scale.x = max_x - min_x
         self.marker.scale.y = max_y - min_y
         self.marker.scale.z = max_z - min_z
+        # self.pub.publish(self.marker)
+
+
+        frame_id = "/map"
+        self.marker_line_list(cube_in_map[0], cube_in_map[1], frame_id)
+        self.marker_line_list(cube_in_map[1], cube_in_map[2], frame_id)
+        self.marker_line_list(cube_in_map[2], cube_in_map[3], frame_id)
+        self.marker_line_list(cube_in_map[3], cube_in_map[0], frame_id)
+        self.marker_line_list(cube_in_map[4], cube_in_map[5], frame_id)
+        self.marker_line_list(cube_in_map[5], cube_in_map[6], frame_id)
+        self.marker_line_list(cube_in_map[6], cube_in_map[7], frame_id)
+        self.marker_line_list(cube_in_map[7], cube_in_map[4], frame_id)
+        self.marker_line_list(cube_in_map[0], cube_in_map[4], frame_id)
+        self.marker_line_list(cube_in_map[1], cube_in_map[5], frame_id)
+        self.marker_line_list(cube_in_map[2], cube_in_map[6], frame_id)
+        self.marker_line_list(cube_in_map[3], cube_in_map[7], frame_id)
+
+        
+
+
+    def marker_line_list(self, point1, point2, frame_id):
+        self.marker = Marker()
+        self.marker.header.frame_id = frame_id
+        self.marker.type = self.marker.LINE_LIST
+        self.marker.color.a = 1.0
+        self.marker.action = self.marker.ADD
+
+        #marker scale
+        self.marker.scale.x = 0.1
+
+        #marker color
+        self.marker.color.a = 1
+
+        #marker orientation
+        self.marker.pose.orientation.x = 0.0
+        self.marker.pose.orientation.y = 0.0
+        self.marker.pose.orientation.z = 0.0
+        self.marker.pose.orientation.w = 1.0
+
+        #marker position
+        self.marker.pose.position.x = 0.0
+        self.marker.pose.position.y = 0.0
+        self.marker.pose.position.z = 0.0
+
+        #marker line points
+        self.marker.points =[]
+
+        #first point
+        first_point = Point()
+        first_point.x = point1[0][0]
+        first_point.y = point1[0][1]
+        first_point.z = point1[0][2]
+        self.marker.points.append(first_point)
+
+
+        #second point
+        second_point = Point()
+        second_point.x = point1[0][0]
+        second_point.y = point1[0][1]
+        second_point.z = point1[0][2]
+        self.marker.points.append(second_point)
+
         self.pub.publish(self.marker)
-    
+
     def __hash__(self):
         return hash(self.name)
 
@@ -355,7 +417,8 @@ class SFMClient():
                 max_y = np.amax(cube_in_map[:,1])
                 min_z = np.amin(cube_in_map[:,2])   
                 max_z = np.amax(cube_in_map[:,2])
-                reg = Region("{}_neg_reg_{}".format(filter.label, len(filter.negative_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
+                # reg = Region("{}_neg_reg_{}".format(filter.label, len(filter.negative_regions)), min_x, max_x, min_y, max_y, min_z, max_z)
+                reg = Region("{}_neg_reg_{}".format(filter.label, len(filter.negative_regions)), min_x, max_x, min_y, max_y, min_z, max_z, cube_in_map)
                 rospy.logwarn("Adding negative Region")                  
                 filter.add_negative_region(reg)
                 # self.neg_regions.add(reg)
