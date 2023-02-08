@@ -4,44 +4,47 @@ title: "real_1_yolo"
 description: ""
 regions:
   - name: "lab"
-    min_x: -3.0
-    max_x: 6.0
-    min_y: -10.0
-    max_y: 3.0
-    min_z: 0.5
-    max_z: 2
+    points:
+      - -2.31164388353,-8.69523546046,0
+      - 0.017336147737,-9.29884223018,0
+      - 2.96042565237,2.85490935052,0
+      - -0.601067649782,3.82270945323,0
+      - -2.31164388353,-8.69523546046,1.5
+      - 0.017336147737,-9.29884223018,1.5
+      - 2.96042565237,2.85490935052,1.5
+      - -0.601067649782,3.82270945323,1.5
+
+  - name: "collab"
+    points: 
+      - -3.69329904415,6.59313910638,0
+      - 0.542218679993,5.24119064525,0
+      - 1.49074155702,9.10995714738,0
+      - -3.23085395574,9.69284500404,0
+      - -3.69329904415,6.59313910638,1.5
+      - 0.542218679993,5.24119064525,1.5
+      - 1.49074155702,9.10995714738,1.5
+      - -3.23085395574,9.69284500404,1.5
 objects:
   - name: "cracker_box"
     priors:
       - name: "lab"
         weight: 1.0
-  # - name: "sugar_box"
-  #   priors:
-  #     - name: "lab"
-  #       weight: 1.0
-  # - name: "soup"
-  #   priors:
-  #     - name: "lab"
-  #       weight: 1.0
   - name: "master_chef_can"
     priors:
-      - name: "lab"
+      - name: "collab"
         weight: 1.0 
-  # - name: "sugar_box"
+  # - name: "mustard_bottle"
   #   priors:
   #     - name: "lab"
   #       weight: 1.0
-  - name: "mug"
-    priors:
-      - name: "lab"
-        weight: 1.0
 frames:
   - "grasp_master_chef_can"
   - "grasp_cracker_box"
+  # - "grasp_mustard_bottle"
   # - "grasp_sugar_box"
   # - "grasp_soup"
-  - "grasp_mug"
-  - "make_coffee"
+  # - "grasp_mug"
+  # - "make_coffee"
   # - "pour_coffee_mug"
   # - "make_coffee"
   #- "grasp_cup"

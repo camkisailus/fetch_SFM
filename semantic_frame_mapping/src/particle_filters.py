@@ -109,10 +109,10 @@ class ParticleFilter(object):
         # if self.valid_regions is None:
         # Random resample in entire map
         #particle[0] = np.random.uniform(-2, 5)
-        particle[0] = np.random.uniform(-10, 9)
+        particle[0] = np.random.uniform(-10, 10)
         # -9 + np.random.random()*10
         #particle[1] = np.random.uniform(-10, 3)
-        particle[1] = np.random.uniform(-6.5, 4.5)
+        particle[1] = np.random.uniform(-10, 10)
         # -5 + np.random.random()*6
         particle[2] = np.random.uniform(0, 1.5)
         # np.random.random()*2
@@ -293,7 +293,7 @@ class ParticleFilter(object):
                 # blue cube
                 marker.color.b = 1
                 marker.type = marker.CUBE
-            elif self.label == 'apple':
+            elif self.label == 'cracker_box':
                 # green cube
                 marker.color.r = 1
                 marker.type = marker.CUBE
@@ -326,7 +326,7 @@ class ParticleFilter(object):
                 marker.color.r = 1
                 marker.color.b = 1
                 marker.type = marker.SPHERE
-            elif self.label == 'grasp_apple':
+            elif self.label == 'grasp_cracker_box':
                 marker.color.r = 1
                 # marker.color.g = 1
                 marker.type = marker.SPHERE
@@ -375,7 +375,7 @@ class ParticleFilter(object):
 class ObjectParticleFilter(ParticleFilter):
     def __init__(self, n, valid_regions, label):
         super(ObjectParticleFilter, self).__init__(n, label, valid_regions)
-        self.ar_to_obj_map = {4: 'apple_1', 5: 'apple_2', 6: 'knife'}
+        self.ar_to_obj_map = {4: 'apple_1', 5: 'knife_1', 6: 'knife_2'}
         self.observation_sub = rospy.Subscriber(
             'scene/observations', ObjectDetectionArray, self.add_observation, queue_size=1)
         self.apriltag_sub = rospy.Subscriber(
@@ -436,13 +436,13 @@ class ObjectParticleFilter(ParticleFilter):
                 for obs in self.observations:
                     if obs.label == observation.label:
                         obs.update_position(
-                            observation.pose.position.x, observation.pose.position.y, observation.pose.position.z)
+                            observation.pose.position.x, observation.pose.position.y, observation.pose.position.z, rospy.Time.now())
                         new_obs = False
                 if new_obs:
                     rospy.loginfo("{}_pf: Received NEW observation at ({}, {}, {})".format(
                         self.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z))
                     obj = StaticObject(observation.label, observation.pose.position.x,
-                                       observation.pose.position.y, observation.pose.position.z)
+                                       observation.pose.position.y, observation.pose.position.z, rospy.Time.now())
                     self.observations.append(obj)
 
     def assign_weight(self, particle):
@@ -452,8 +452,13 @@ class ObjectParticleFilter(ParticleFilter):
                 return 0
         region_weight = 1e-3
         for region, weight in self.valid_regions.items():
-            min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
-            if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
+            # min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
+            if "cracker_box" in self.label:
+                rospy.logwarn_once("For filter {} checking region {}".format(self.label, region.name))
+            else:
+                rospy.logwarn_once("For filter {} checking region {}".format(self.label, region.name))
+            if region.check_point_in_cube(particle):
+            # if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
                 # rospy.logwarn("Particle in region {}".format(i))
                 region_weight = weight
                 break
