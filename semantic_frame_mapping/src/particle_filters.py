@@ -376,8 +376,8 @@ class ObjectParticleFilter(ParticleFilter):
     def __init__(self, n, valid_regions, label):
         super(ObjectParticleFilter, self).__init__(n, label, valid_regions)
         self.ar_to_obj_map = {4: 'apple_1', 5: 'knife_1', 6: 'knife_2'}
-        self.observation_sub = rospy.Subscriber(
-            'scene/observations', ObjectDetectionArray, self.add_observation, queue_size=1)
+        # self.observation_sub = rospy.Subscriber(
+        #     'scene/observations', ObjectDetectionArray, self.add_observation, queue_size=1)
         self.apriltag_sub = rospy.Subscriber(
             'tag_detections', AprilTagDetectionArray, self.handle_ar_detection, queue_size=1)
 
@@ -428,28 +428,47 @@ class ObjectParticleFilter(ParticleFilter):
     def add_observation_from_config(self, x, y, z):
         self.observations.append(StaticObject(self.label, x, y, z))
 
-    def add_observation(self, msg):
-        # TODO: Isaac make sure multiple instances are handled correctly.
-        for observation in msg.detections:
-            if observation.label == self.label:
-                new_obs = True
-                for obs in self.observations:
-                    if obs.label == observation.label:
-                        obs.update_position(
-                            observation.pose.position.x, observation.pose.position.y, observation.pose.position.z, rospy.Time.now())
-                        new_obs = False
-                if new_obs:
-                    rospy.loginfo("{}_pf: Received NEW observation at ({}, {}, {})".format(
-                        self.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z))
-                    obj = StaticObject(observation.label, observation.pose.position.x,
-                                       observation.pose.position.y, observation.pose.position.z, rospy.Time.now())
-                    self.observations.append(obj)
+    def add_observation(self, detection):
+        newObj = True
+        for obs in self.observations:
+            if obs.label == detection.label:
+                obs.update_position(
+                    detection.pose.position.x, detection.pose.position.y, detection.pose.position.z, rospy.Time.now()
+                )
+                newObj = False
+        if newObj:
+            rospy.loginfo("{}_pf: Received NEW observation at ({}, {}, {})".format(
+                        self.label, detection.pose.position.x, detection.pose.position.y, detection.pose.position.z))
+            obj = StaticObject(detection.label, detection.pose.position.x,
+                                detection.pose.position.y, detection.pose.position.z, rospy.Time.now())
+            self.observations.append(obj)
+
+
+
+    # def add_observation(self, msg):
+    #     # TODO: Isaac make sure multiple instances are handled correctly.
+    #     for observation in msg.detections:
+    #         if observation.label == self.label:
+    #             new_obs = True
+    #             for obs in self.observations:
+    #                 if obs.label == observation.label:
+    #                     obs.update_position(
+    #                         observation.pose.position.x, observation.pose.position.y, observation.pose.position.z, rospy.Time.now())
+    #                     new_obs = False
+    #             if new_obs:
+                    # rospy.loginfo("{}_pf: Received NEW observation at ({}, {}, {})".format(
+                    #     self.label, observation.pose.position.x, observation.pose.position.y, observation.pose.position.z))
+                    # obj = StaticObject(observation.label, observation.pose.position.x,
+                    #                    observation.pose.position.y, observation.pose.position.z, rospy.Time.now())
+                    # self.observations.append(obj)
 
     def assign_weight(self, particle):
         for region in self.negative_regions:
-            min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
-            if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
+            # min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
+            if region.check_point_in_cube(particle):
                 return 0
+            # if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
+            #     return 0
         region_weight = 1e-3
         for region, weight in self.valid_regions.items():
             # min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
