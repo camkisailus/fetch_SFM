@@ -546,7 +546,20 @@ class SFMClient():
             pick_pose.position.z = mcc_det.z
             rospy.logwarn("Sending pick location to picker")
             self.ac.pick(mode=1, goal=pick_pose)
-            
+    
+    def searchFor(self, frame_name): #returns next beleived pose position
+
+        self.frame_filters[frame_name].bgmm()
+        arr = MarkerArray()
+        means, covs, weights = self.bgmm()
+        max_idx = np.argmax(weights)
+        m, c = means[max_idx], covs[max_idx]
+        
+        goal_x = m[0]
+        goal_y = m[1]
+
+        return goal_x, goal_y
+    
 # def pick(self, mode=0, goal=None):
 #     if mode == 1:
 #         assert(goal is not None)
