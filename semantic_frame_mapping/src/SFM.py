@@ -46,6 +46,7 @@ class State():
         self.collab_table.pose.position.y = 8.21563250394
         self.collab_table.pose.orientation.z = -0.0984918944551
         self.collab_table.pose.orientation.w = 0.995137853127
+        self.keyposes = [self.bar_table, self.light_table, self.collab_table]
 
     def update_pose(self, pose_msg):
         self.pose = pose_msg.pose.pose
@@ -410,8 +411,8 @@ class SFMClient():
         # ROS subscribers
         # self.start_exp_sub = rospy.Subscriber(
         #     "/start_experiment", String, self.run)
-        # self.execute_frame_sub = rospy.Subscriber(
-        #     "/execute", String, self.execute_frame)
+        self.execute_frame_sub = rospy.Subscriber(
+            "/execute", String, self.execute_frame)
         # self.update_filters_sub = rospy.Subscriber("/update_filters", Int8, self.update_filters)
 
         # Debug info for frames
@@ -498,7 +499,7 @@ class SFMClient():
         return cube_in_map
 
     def handle_observation(self, msg):
-        rospy.logwarn("Handling observation")
+        # rospy.logwarn("Handling observation")
         self.observationCount +=1
         objectsSeen = set()
         for detection in msg.detections:
@@ -512,12 +513,12 @@ class SFMClient():
         if cube_in_map is None:
             rospy.logerr("Could not generate cube_in_map")
             return
-        rospy.logwarn("Cube not None")
+        # rospy.logwarn("Cube not None")
         reg = Region("Neg_reg_{}".format(self.observationCount), 0, 0, 0, 0, 0, 0, cube_in_map)   
         for label, filter in self.object_filters.items():
             if label not in objectsSeen:
                 # add negative region
-                rospy.logwarn("Adding negative region to {}".format(label))
+                # rospy.logwarn("Adding negative region to {}".format(label))
                 filter.add_negative_region(reg)
 
     def publish_regions(self):
@@ -721,8 +722,33 @@ class SFMClient():
         return np.sqrt(x_dist**2 + y_dist**2)
 
     def graspObject(self, object: str, frameFilter: FrameParticleFilter) -> bool:
-        print("[AGENT]: Entering graspObj({}, {})".format(
+        rospy.loginfo("[AGENT]: Entering graspObj({}, {})".format(
             object, frameFilter.label))
+        objGrasped = False
+        while not frameFilter.converged:
+            rospy.loginfo_throttle(1, "Waiting for filter to converge....")
+        rospy.sleep(5)
+        self.update = False # pause filter updates
+        best_particle = frameFilter.getHighestWeightedParticle()
+        dist = 1e3
+        keyposeGoal = None
+        for keypose in self.state.keyposes:
+            xdist = np.abs(keypose.pose.position.x - best_particle[0])**2
+            ydist = np.abs(keypose.pose.position.y - best_particle[1])**2
+            distToKeypose = np.sqrt(xdist + ydist)
+            if distToKeypose < dist:
+                dist = distToKeypose
+                keyposeGoal = keypose
+            # dist = min(dist, ())
+        self.ac.goToKeyPose(keyposeGoal)     
+        self.ac.point_head(best_particle[0], best_particle[1], best_particle[2])
+        pick_pose = Pose()
+        pick_pose.position.x = best_particle[0]
+        pick_pose.position.y = best_particle[1]
+        pick_pose.position.z = best_particle[2]
+        rospy.logwarn("Sending pick location to picker")
+        self.ac.pick(mode=0, goal=pick_pose)
+
         # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to grasp
 
     def putObject(self, object, target, frameFilter: FrameParticleFilter) -> bool:
@@ -739,7 +765,7 @@ class SFMClient():
             object, target, frameFilter.label))
         # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to pour obj into target
 
-    def exceute_frame(self, frame_name: String):
+    def execute_frame(self, frame_name: String):
         self.execute(frame_name.data)
 
     def execute(self, frame_name: str):
@@ -765,12 +791,12 @@ class SFMClient():
         except TypeError:
             print("[AGENT]: No preconditions for {}".format(frame_name))
 
-        if frame_name.split("_")[0] == "Grasp":
+        if frame_name.split("_")[0] == "grasp":
             return self.graspObject(frame_name.split("_", 1)[1], frameFilter)
 
         # self.update = False
         # if frame_name.data == 'make_coffee':
-        #     best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
+            # best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
         #     self.ac.move_torso(0.4)
         #     self.ac.point_head(best_particle[0], best_particle[1], best_particle[2]-0.1)
         #     p = Pose()
@@ -827,12 +853,12 @@ class SFMClient():
         #     grasp_mcc = self.frame_filters[frame_name.data]
         #     mcc_obj = grasp_mcc.frame_element_filters['master_chef_can']
         #     mcc_det = mcc_obj.observations[0]
-        #     # pick_pose = Pose()
-        #     # pick_pose.position.x = mcc_det.x
-        #     # pick_pose.position.y = mcc_det.y + 0.02
-        #     # pick_pose.position.z = mcc_det.z
-        #     # rospy.logwarn("Sending pick location to picker")
-        #     # self.ac.pick(mode=1, goal=pick_pose)
+        #     pick_pose = Pose()
+        #     pick_pose.position.x = mcc_det.x
+        #     pick_pose.position.y = mcc_det.y + 0.02
+        #     pick_pose.position.z = mcc_det.z
+        #     rospy.logwarn("Sending pick location to picker")
+        #     self.ac.pick(mode=1, goal=pick_pose)
 
         #     # means, covs, weights = self.frame_filters[frame_name.data].bgmm()
         #     # max_idx = np.argmax(weights)

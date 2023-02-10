@@ -96,7 +96,11 @@ class ParticleFilter(object):
             self.particles[i] = self.reinvigorate(self.particles[i])
         self.bgm = BayesianGaussianMixture(
             n_components=20, n_init=10, warm_start=False)
+        self.converged = False
 
+    def getHighestWeightedParticle(self):
+        return self.particles[np.argmax(self.weights)]
+    
     def add_negative_region(self, region):
         self.negative_regions.append(region)
 
@@ -364,10 +368,11 @@ class ParticleFilter(object):
             #     marker.color.a = 0.75
             # else:
             #     marker.color.a = 1.0
+            maxParticle = self.getHighestWeightedParticle()
             marker.pose.orientation.w = 1.0
-            marker.pose.position.x = self.particles[i, 0]
-            marker.pose.position.y = self.particles[i, 1]
-            marker.pose.position.z = self.particles[i, 2]
+            marker.pose.position.x = maxParticle[0] #self.particles[i, 0]
+            marker.pose.position.y = maxParticle[1] #self.particles[i, 1]
+            marker.pose.position.z = maxParticle[2] #self.particles[i, 2]
             marker_array.markers.append(marker)
         self.marker_pub.publish(marker_array)
 
@@ -429,6 +434,7 @@ class ObjectParticleFilter(ParticleFilter):
         self.observations.append(StaticObject(self.label, x, y, z))
 
     def add_observation(self, detection):
+        # self.converged = True
         newObj = True
         for obs in self.observations:
             if obs.label == detection.label:
@@ -463,31 +469,33 @@ class ObjectParticleFilter(ParticleFilter):
                     # self.observations.append(obj)
 
     def assign_weight(self, particle):
-        for region in self.negative_regions:
-            # min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
-            if region.check_point_in_cube(particle):
-                return 0
-            # if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
+        if len(self.observations) == 0:
+            for region in self.negative_regions:
+                # min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
+                if region.check_point_in_cube(particle):
+                    return 0
+                # if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
+            for region, weight in self.valid_regions.items():
+                # min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
+                # if "cracker_box" in self.label:
+                #     rospy.logwarn_once("For filter {} checking region {}".format(self.label, region.name))
+                # else:
+                #     rospy.logwarn_once("For filter {} checking region {}".format(self.label, region.name))
+                if region.check_point_in_cube(particle):
+                # if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
+                    # rospy.logwarn("Particle in region {}".format(i))
+                    return weight
+                    region_weight = weight
+                    break
+        # if len(self.observations) == 0:
+            # return 1 * region_weight
             #     return 0
         region_weight = 1e-3
-        for region, weight in self.valid_regions.items():
-            # min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
-            if "cracker_box" in self.label:
-                rospy.logwarn_once("For filter {} checking region {}".format(self.label, region.name))
-            else:
-                rospy.logwarn_once("For filter {} checking region {}".format(self.label, region.name))
-            if region.check_point_in_cube(particle):
-            # if min_x <= particle[0] <= max_x and min_y <= particle[1] <= max_y and min_z <= particle[2] <= max_z:
-                # rospy.logwarn("Particle in region {}".format(i))
-                region_weight = weight
-                break
-        if len(self.observations) == 0:
-            return 1 * region_weight
         cur_time = rospy.Time.now()
         staleObsIdx = []
         max_phi = 0
         for i, observation in enumerate(self.observations):
-            if cur_time - observation.time > rospy.Duration(5):
+            if cur_time - observation.time > rospy.Duration(5*60): # 5*60 wait
                 rospy.logwarn("Found stale observation: {}".format(observation.label))
                 staleObsIdx.append(i)
                 continue
@@ -552,6 +560,9 @@ class ObjectParticleFilter(ParticleFilter):
 
     def update_filter(self):
         # count = 0
+        if len(self.observations) > 0:
+            rospy.logwarn_once("{} converged".format(self.label))
+            self.converged = True
         self.resample()
         for k in range(self.n):
             self.particles[k, :] = self.jitter(self.particles[k, :])
@@ -752,6 +763,9 @@ class FrameParticleFilter(ParticleFilter):
         return measurement*context
 
     def update_filter(self, state):
+        if self.label.startswith("grasp") and self.frame_element_filters[self.frame_elements[0]].converged:
+            rospy.logwarn_once("{} converged".format(self.label))
+            self.converged = True
         with self.lock:
             self.kisailus_resample()
             # self.systematic_resample()
