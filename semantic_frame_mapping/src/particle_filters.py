@@ -95,7 +95,7 @@ class ParticleFilter(object):
         for i in range(self.n):
             self.particles[i] = self.reinvigorate(self.particles[i])
         self.bgm = BayesianGaussianMixture(
-            n_components=20, n_init=10, warm_start=False)
+            n_components=10, n_init=10, warm_start=True)
         self.converged = False
 
     def getHighestWeightedParticle(self):
@@ -105,9 +105,11 @@ class ParticleFilter(object):
         self.negative_regions.append(region)
 
     def bgmm(self):
-        with self.lock:
-            bgm = self.bgm.fit(self.particles)
-            return bgm.means_, bgm.covariances_, bgm.weights_
+        rospy.logwarn("In bgmm")
+        # with self.lock:
+            # print()
+        bgm = self.bgm.fit(self.particles)
+        return bgm.means_, bgm.covariances_, bgm.weights_
 
     def reinvigorate(self, particle, valid_region=False):
         # if self.valid_regions is None:
@@ -368,11 +370,11 @@ class ParticleFilter(object):
             #     marker.color.a = 0.75
             # else:
             #     marker.color.a = 1.0
-            maxParticle = self.getHighestWeightedParticle()
+            # maxParticle = self.getHighestWeightedParticle()
             marker.pose.orientation.w = 1.0
-            marker.pose.position.x = maxParticle[0] #self.particles[i, 0]
-            marker.pose.position.y = maxParticle[1] #self.particles[i, 1]
-            marker.pose.position.z = maxParticle[2] #self.particles[i, 2]
+            marker.pose.position.x = self.particles[i, 0] #maxParticle[0]
+            marker.pose.position.y = self.particles[i, 1] #maxParticle[1]
+            marker.pose.position.z = self.particles[i, 2]#maxParticle[2]
             marker_array.markers.append(marker)
         self.marker_pub.publish(marker_array)
 

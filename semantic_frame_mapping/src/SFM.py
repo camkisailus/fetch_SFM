@@ -15,7 +15,7 @@ from gazebo_msgs.srv import SetModelState, SetModelStateResponse
 from gazebo_msgs.srv import SpawnModel, SpawnModelResponse
 from gazebo_msgs.msg import ModelState
 import tf
-
+from actionlib_msgs.msg import GoalID
 
 class State():
     def __init__(self, action_history):
@@ -268,6 +268,7 @@ class ActionClient():
             "kisailus_pick", PickRequestAction)
         self.pick_client.wait_for_server()
         rospy.logwarn("Connected to pick server")
+        self.cancel_nav_pub = rospy.Publisher("/move_base/cancel", GoalID)
         # self.pick_sub = rospy.Subscriber("pick", Bool, self.pick_from_cmd)
         # self.tf_listener = tf.TransformListener()
         # self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
@@ -280,6 +281,9 @@ class ActionClient():
 
     def get_pose(self):
         return self.cur_pose
+
+    def cancelNav(self):
+        self.cancel_nav_pub.publish(GoalID())
 
     def goToKeyPose(self, keypose: PoseStamped):
         """
@@ -387,7 +391,7 @@ class SFMClient():
             for prior in object['priors']:
                 priors[self.regions[prior['name']]] = float(prior['weight'])
             self.object_filters[object['name']] = ObjectParticleFilter(
-                100, valid_regions=priors, label=name)
+                20, valid_regions=priors, label=name)
             self.object_filters[object['name']].publish()
 
         self.frame_filters = {}
@@ -726,8 +730,9 @@ class SFMClient():
             object, frameFilter.label))
         objGrasped = False
         while not frameFilter.converged:
-            ## searchFor(object)
             rospy.loginfo_throttle(1, "Waiting for filter to converge....")
+            self.searchFor(object)
+        self.ac.cancelNav()
         rospy.sleep(5)
         self.update = False # pause filter updates
         best_particle = frameFilter.getHighestWeightedParticle()
@@ -766,6 +771,19 @@ class SFMClient():
             object, target, frameFilter.label))
         # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to pour obj into target
 
+    def searchFor(self, object_name): #returns next beleived pose position
+        self.update = False
+        rospy.logwarn("Getting bgmm")
+        means, covs, weights = self.object_filters[object_name].bgmm()
+        rospy.logwarn("Returned from bgmm")
+        self.update = True
+        max_idx = np.argmax(weights)
+        m, c = means[max_idx], covs[max_idx]
+        
+        goal_x = m[0]
+        goal_y = m[1]
+        self.ac.go_to(goal_x, goal_y, 0)
+    
     def execute_frame(self, frame_name: String):
         self.execute(frame_name.data)
 
