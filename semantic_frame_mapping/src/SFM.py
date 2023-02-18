@@ -16,6 +16,7 @@ from gazebo_msgs.srv import SpawnModel, SpawnModelResponse
 from gazebo_msgs.msg import ModelState
 import tf
 from actionlib_msgs.msg import GoalID
+from perception.msg import YOLORequestAction, YOLORequestGoal, YOLORequestResult
 
 class State():
     def __init__(self, action_history):
@@ -46,7 +47,15 @@ class State():
         self.collab_table.pose.position.y = 8.21563250394
         self.collab_table.pose.orientation.z = -0.0984918944551
         self.collab_table.pose.orientation.w = 0.995137853127
-        self.keyposes = [self.bar_table, self.light_table, self.collab_table]
+
+        self.dark_table = PoseStamped()
+        self.dark_table.header.frame_id = "map"
+        self.dark_table.pose.position.x = -1.54031579142
+        self.dark_table.pose.position.y = -7.07256176208
+        self.dark_table.pose.orientation.z = 0.0380964410181
+        self.dark_table.pose.orientation.w = 0.999274067102
+
+        self.keyposes = [self.bar_table, self.light_table, self.collab_table, self.dark_table]
 
     def update_pose(self, pose_msg):
         self.pose = pose_msg.pose.pose
@@ -269,12 +278,19 @@ class ActionClient():
         self.pick_client.wait_for_server()
         rospy.logwarn("Connected to pick server")
         self.cancel_nav_pub = rospy.Publisher("/move_base/cancel", GoalID)
+        self.yolo_client = actionlib.SimpleActionClient("yolo_detector", YOLORequestAction)
         # self.pick_sub = rospy.Subscriber("pick", Bool, self.pick_from_cmd)
         # self.tf_listener = tf.TransformListener()
         # self.grasp_pub = rospy.Publisher('request_grasp_pts', Bool, queue_size=10)
         # self.point_head_pub = rospy.Publisher('/point_head/at', Point, queue_size=10)
         # self.cur_pose_sub = rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.pose_cb)
         # self.cur_pose = Pose()
+    def run_yolo(self):
+        goal = YOLORequestGoal()
+        goal.publish_detections = True
+        self.yolo_client.send_goal(goal)
+        self.yolo_client.wait_for_result()
+        return self.yolo_client.get_result()
 
     def pose_cb(self, pose_msg):
         self.cur_pose = pose_msg.pose.pose
@@ -315,11 +331,12 @@ class ActionClient():
         self.torso_client.wait_for_result()
         return self.torso_client.get_result()
 
-    def point_head(self, x, y, z):
+    def point_head(self, x, y, z, frame):
         request = PointHeadRequestGoal()
         request.x = x
         request.y = y
         request.z = z
+        request.frame = frame
         self.point_head_client.send_goal(request)
         self.point_head_client.wait_for_result()
 
@@ -391,7 +408,7 @@ class SFMClient():
             for prior in object['priors']:
                 priors[self.regions[prior['name']]] = float(prior['weight'])
             self.object_filters[object['name']] = ObjectParticleFilter(
-                20, valid_regions=priors, label=name)
+                50, valid_regions=priors, label=name)
             self.object_filters[object['name']].publish()
 
         self.frame_filters = {}
@@ -417,6 +434,7 @@ class SFMClient():
         #     "/start_experiment", String, self.run)
         self.execute_frame_sub = rospy.Subscriber(
             "/execute", String, self.execute_frame)
+        
         # self.update_filters_sub = rospy.Subscriber("/update_filters", Int8, self.update_filters)
 
         # Debug info for frames
@@ -445,7 +463,7 @@ class SFMClient():
 
     def generateNegativeRegion(self):
         #Observable region is cube
-        cube_length = 2
+        cube_length = 4
         #Constructing a cube in Camera Tilt Link
         cube_coord = np.zeros((8,3))
         #Bottom 4 points, going counter-clockwise from bottom left corner
@@ -506,7 +524,9 @@ class SFMClient():
         # rospy.logwarn("Handling observation")
         self.observationCount +=1
         objectsSeen = set()
+        rospy.logwarn(msg)
         for detection in msg.detections:
+            rospy.logwarn(detection.label)
             objectsSeen.add(detection.label)
             try:
                 self.object_filters[detection.label].add_observation(detection)
@@ -522,7 +542,7 @@ class SFMClient():
         for label, filter in self.object_filters.items():
             if label not in objectsSeen:
                 # add negative region
-                # rospy.logwarn("Adding negative region to {}".format(label))
+                rospy.logwarn("Adding negative region to {}".format(label))
                 filter.add_negative_region(reg)
 
     def publish_regions(self):
@@ -732,6 +752,7 @@ class SFMClient():
         while not frameFilter.converged:
             rospy.loginfo_throttle(1, "Waiting for filter to converge....")
             self.searchFor(object)
+            rospy.sleep(5) # let filters update
         self.ac.cancelNav()
         rospy.sleep(5)
         self.update = False # pause filter updates
@@ -747,7 +768,7 @@ class SFMClient():
                 keyposeGoal = keypose
             # dist = min(dist, ())
         self.ac.goToKeyPose(keyposeGoal)     
-        self.ac.point_head(best_particle[0], best_particle[1], best_particle[2])
+        self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
         pick_pose = Pose()
         pick_pose.position.x = best_particle[0]
         pick_pose.position.y = best_particle[1]
@@ -772,19 +793,18 @@ class SFMClient():
         # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to pour obj into target
 
     def searchFor(self, object_name): #returns next beleived pose position
-        self.update = False
-        rospy.logwarn("Getting bgmm")
-        means, covs, weights = self.object_filters[object_name].bgmm()
-        rospy.logwarn("Returned from bgmm")
-        self.update = True
-        max_idx = np.argmax(weights)
-        m, c = means[max_idx], covs[max_idx]
-        
-        goal_x = m[0]
-        goal_y = m[1]
+        # self.update = False
+        mean = self.object_filters[object_name].latest_bgmm_mean        
+        goal_x = mean[0]
+        goal_y = mean[1]
         self.ac.go_to(goal_x, goal_y, 0)
+        self.ac.cancelNav() # stop moving
+        self.ac.point_head(2, 0, 0.8, "base_link")
+        self.ac.run_yolo() # get observation
     
     def execute_frame(self, frame_name: String):
+        self.ac.run_yolo()
+        rospy.sleep(5)
         self.execute(frame_name.data)
 
     def execute(self, frame_name: str):

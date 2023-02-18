@@ -1,0 +1,7 @@
+# Goal
+bool publish_detections
+---
+# Result
+bool success
+---
+# Feedback

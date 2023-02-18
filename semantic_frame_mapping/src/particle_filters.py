@@ -95,8 +95,9 @@ class ParticleFilter(object):
         for i in range(self.n):
             self.particles[i] = self.reinvigorate(self.particles[i])
         self.bgm = BayesianGaussianMixture(
-            n_components=10, n_init=10, warm_start=True)
+            n_components=10, n_init=10, warm_start=False)
         self.converged = False
+        
 
     def getHighestWeightedParticle(self):
         return self.particles[np.argmax(self.weights)]
@@ -105,10 +106,10 @@ class ParticleFilter(object):
         self.negative_regions.append(region)
 
     def bgmm(self):
-        rospy.logwarn("In bgmm")
-        # with self.lock:
+        # rospy.logwarn("In bgmm")
+        with self.lock:
             # print()
-        bgm = self.bgm.fit(self.particles)
+            bgm = self.bgm.fit(self.particles)
         return bgm.means_, bgm.covariances_, bgm.weights_
 
     def reinvigorate(self, particle, valid_region=False):
@@ -391,6 +392,10 @@ class ObjectParticleFilter(ParticleFilter):
         self.marker_pub = rospy.Publisher(
             'filter/particles/{}'.format(label), MarkerArray, queue_size=10)
         self.observations = []
+        self.gauss_pub = rospy.Publisher(
+            'filter/gauss/{}'.format(label), MarkerArray, queue_size=10)
+        self.latest_bgmm_mean = None
+        self.update_count = 0
         # if self.label == 'spoon':
         #     # 'dining_room': (4.5, 8.5, 0.5, 3.5, 0, 1.5),
         #     dummy_obs = StaticObject('spoon', 6.5, 2, 0.7)
@@ -412,6 +417,79 @@ class ObjectParticleFilter(ParticleFilter):
 
     def publish(self):
         super(ObjectParticleFilter, self).publish()
+        if self.update_count % 10 != 0:
+            return
+        arr = MarkerArray()
+        means, covs, weights = self.bgmm()
+        max_idx = np.argmax(weights)
+        m, c = means[max_idx], covs[max_idx]
+        self.latest_bgmm_mean = m
+        def normalize(v):
+            norm = np.linalg.norm(v)
+            if norm == 0:
+                return v
+            return v / norm
+        n = 2
+        # indices = (-weights).argsort()[:n]
+        count = 0
+        # for idx in indices:
+        #     if count > 0:
+        #         break
+        #     m, c, _ = means[idx], covs[idx], weights[idx]
+
+        (eigValues, eigVectors) = np.linalg.eig(c)
+        eigx_n = np.array(
+            [eigVectors[0, 0], eigVectors[0, 1], eigVectors[0, 2]]).reshape(1, 3)
+        eigy_n = - \
+            np.array([eigVectors[1, 0], eigVectors[1, 1],
+                        eigVectors[1, 2]]).reshape(1, 3)
+        eigz_n = np.array(
+            [eigVectors[2, 0], eigVectors[2, 1], eigVectors[2, 2]]).reshape(1, 3)
+        eigx_n = normalize(eigx_n)
+        eigy_n = normalize(eigy_n)
+        eigz_n = normalize(eigz_n)
+        rot_mat = np.hstack([eigx_n.T, eigy_n.T, eigz_n.T])
+        rot = R.from_matrix(rot_mat)
+        quat = rot.as_quat()
+        marker = Marker()
+        marker.id = count
+        count += 1
+        marker.type = Marker.SPHERE
+        marker.action = Marker.ADD
+        marker.pose.position.x = m[0]
+        marker.pose.position.y = m[1]
+        marker.pose.position.z = m[2]
+        marker.header.frame_id = 'map'
+        marker.pose.orientation.x = quat[0]
+        marker.pose.orientation.y = quat[1]
+        marker.pose.orientation.z = quat[2]
+        marker.pose.orientation.w = quat[3]
+        marker.scale.x = eigValues[0]*2
+        marker.scale.y = eigValues[1]*2
+        marker.scale.z = eigValues[2]*2
+        foo = np.sqrt(marker.scale.x**2 + marker.scale.y **
+                        2 + marker.scale.z**2)
+        # if foo > 5:
+        #     break
+        # rospy.logwarn("{} gauss # {} scale is: {}".format(self.label, count, foo))
+
+        # marker.color.a = 0.5
+        if count > 1:
+            marker.lifetime = rospy.Duration(10)
+        marker.color.a = 0.75 - count*0.2
+        # count+=1
+        if self.label == 'cracker_box':
+            # red cube
+            marker.color.r = 1
+
+        elif self.label == 'master_chef_can':
+            # blue cube
+            marker.color.b = 1
+        # marker.lifetime = rospy.Duration(10)
+        arr.markers.append(marker)
+
+        self.gauss_pub.publish(arr)
+        # rospy.logwarn("Publishing gaussians for {}".format(self.label))
         return
         for observation in self.observations:
             observation.publish()
