@@ -1,0 +1,12 @@
+# semantic frame
+# Put_cracker_box_on_bar_table_sf.yaml
+
+name: put_cracker_box_on_bar_table
+description: pick cracker box and place it on bar table
+frame_elements:
+  - name: cracker_box
+    is_core: True
+  - name: bar_table
+    is_core: True
+preconditions:
+  - name: grasp_cracker_box

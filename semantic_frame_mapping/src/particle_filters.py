@@ -113,28 +113,32 @@ class ParticleFilter(object):
         return bgm.means_, bgm.covariances_, bgm.weights_
 
     def reinvigorate(self, particle, valid_region=False):
-        # if self.valid_regions is None:
-        # Random resample in entire map
-        #particle[0] = np.random.uniform(-2, 5)
-        particle[0] = np.random.uniform(-10, 10)
-        # -9 + np.random.random()*10
-        #particle[1] = np.random.uniform(-10, 3)
-        particle[1] = np.random.uniform(-10, 10)
-        # -5 + np.random.random()*6
-        particle[2] = np.random.uniform(0, 1.5)
+        if "table" not in self.label or isinstance(self, FrameParticleFilter):
+            # Random resample in entire map
+            #particle[0] = np.random.uniform(-2, 5)
+            particle[0] = np.random.uniform(-12, 10)
+            # -9 + np.random.random()*10
+            #particle[1] = np.random.uniform(-10, 3)
+            particle[1] = np.random.uniform(-12, 10)
+            # -5 + np.random.random()*6
+            particle[2] = np.random.uniform(0, 1.5)
         # np.random.random()*2
-        # else:
-        #     # Random resample in a valid region
-        #     r = np.random.random()
-        #     prev_bounds = [0]
-        #     for region, weight in self.valid_regions.items():
-        #         if r >= 1 - weight - sum(prev_bounds):
-        #             # region = self.valid_regions[self.reinvigoration_idx % len(self.valid_regions)]
-        #             min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
-        #             particle[0] = min_x + np.random.random()*(max_x - min_x)
-        #             particle[1] = min_y + np.random.random()*(max_y - min_y)
-        #             particle[2] = min_z + np.random.random()*(max_z - min_z)
-        #             # self.reinvigoration_idx+=1
+        else:
+            # Random resample in a valid region
+            region = list(self.valid_regions.keys())[0]
+            # for region, weight in self.valid_regions.items():
+            points = region.cube
+            min_x = np.min(points[:, 0])
+            max_x = np.max(points[:, 0])
+            min_y = np.min(points[:, 1])
+            max_y = np.max(points[:, 1])
+            min_z = np.min(points[:, 2])
+            max_z = np.max(points[:, 2])
+
+            particle[0] = min_x + np.random.random()*(max_x - min_x)
+            particle[1] = min_y + np.random.random()*(max_y - min_y)
+            particle[2] = min_z + np.random.random()*(max_z - min_z)
+                    # self.reinvigoration_idx+=1
         return particle
 
     def kisailus_resample(self):
@@ -321,7 +325,7 @@ class ParticleFilter(object):
                 # red sphere
                 marker.color.b = 1
                 marker.type = marker.SPHERE
-            elif self.label == 'grasp_knife':
+            elif self.label == 'put_cracker_box_on_bar_table':
                 marker.color.g = 1
                 marker.type = marker.SPHERE
             # elif self.label == 'pour_coffee_mug':
@@ -417,7 +421,7 @@ class ObjectParticleFilter(ParticleFilter):
 
     def publish(self):
         super(ObjectParticleFilter, self).publish()
-        if self.update_count % 10 != 0:
+        if self.update_count % 20 != 0:
             return
         arr = MarkerArray()
         means, covs, weights = self.bgmm()
@@ -639,6 +643,7 @@ class ObjectParticleFilter(ParticleFilter):
             #     self.particles[i, 2] = self.observations[0].z
 
     def update_filter(self):
+        self.update_count+=1
         # count = 0
         if len(self.observations) > 0:
             rospy.logwarn_once("{} converged".format(self.label))

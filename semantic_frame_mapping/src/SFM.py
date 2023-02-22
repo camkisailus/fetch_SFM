@@ -55,7 +55,7 @@ class State():
         self.dark_table.pose.orientation.z = 0.0380964410181
         self.dark_table.pose.orientation.w = 0.999274067102
 
-        self.keyposes = [self.bar_table, self.light_table, self.collab_table, self.dark_table]
+        self.keyposes = {'bar_table':self.bar_table, 'light_table':self.light_table, 'collab_table':self.collab_table, 'dark_table':self.dark_table}
 
     def update_pose(self, pose_msg):
         self.pose = pose_msg.pose.pose
@@ -348,6 +348,8 @@ class ActionClient():
         request.mode = mode
         if goal:
             request.pick_pose = goal  # this is particle loc in map frame
+            # if mode == 2:
+            #     request.place_pose = goal
         self.pick_client.send_goal(request)
         rospy.loginfo("Sent pick_client goal")
         self.pick_client.wait_for_result()
@@ -434,6 +436,8 @@ class SFMClient():
         #     "/start_experiment", String, self.run)
         self.execute_frame_sub = rospy.Subscriber(
             "/execute", String, self.execute_frame)
+        # keyposeGoal = self.state.keyposes['dark_table']
+        # self.ac.goToKeyPose(keyposeGoal) 
         
         # self.update_filters_sub = rospy.Subscriber("/update_filters", Int8, self.update_filters)
 
@@ -759,7 +763,7 @@ class SFMClient():
         best_particle = frameFilter.getHighestWeightedParticle()
         dist = 1e3
         keyposeGoal = None
-        for keypose in self.state.keyposes:
+        for name, keypose in self.state.keyposes.items():
             xdist = np.abs(keypose.pose.position.x - best_particle[0])**2
             ydist = np.abs(keypose.pose.position.y - best_particle[1])**2
             distToKeypose = np.sqrt(xdist + ydist)
@@ -767,7 +771,8 @@ class SFMClient():
                 dist = distToKeypose
                 keyposeGoal = keypose
             # dist = min(dist, ())
-        self.ac.goToKeyPose(keyposeGoal)     
+        self.ac.goToKeyPose(keyposeGoal)
+        rospy.sleep(2)     
         self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
         pick_pose = Pose()
         pick_pose.position.x = best_particle[0]
@@ -775,12 +780,47 @@ class SFMClient():
         pick_pose.position.z = best_particle[2]
         rospy.logwarn("Sending pick location to picker")
         self.ac.pick(mode=0, goal=pick_pose)
+        self.state.add_action_to_action_history(frameFilter.label)
+        return True
 
         # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to grasp
 
     def putObject(self, object, target, frameFilter: FrameParticleFilter) -> bool:
         print("[AGENT]: Entering putObject({}, {}, {})".format(object, target, frameFilter.label))
+        keyposeGoal = self.state.keyposes['bar_table']
+        self.ac.goToKeyPose(keyposeGoal)
+        self.ac.point_head(1, 0, 0.8, 'base_link')
+        place_pose = PoseStamped()
+        place_pose.header.frame_id = "map"
+        place_pose.header.stamp = rospy.Time.now()
+        place_pose.pose.position.x = -1.5
+        place_pose.pose.position.y = -10.5
+        place_pose.pose.position.z = 0.9
+        # place_pose_map_frame = self.tf_listener.transformPose("/map", place_pose)
+        self.ac.pick(mode=2, goal=place_pose.pose)
+        return True
         # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to put object on target
+        # rospy.loginfo("[AGENT]: Entering graspObj({}, {})".format(
+        #     object, frameFilter.label))
+        # objGrasped = False
+        # while not frameFilter.converged:
+        #     rospy.loginfo_throttle(1, "Waiting for filter to converge....")
+        #     self.searchFor(object)
+        #     rospy.sleep(5) # let filters update
+        # self.ac.cancelNav()
+        # rospy.sleep(5)
+        # self.update = False # pause filter updates
+        # best_particle = frameFilter.getHighestWeightedParticle()
+        # dist = 1e3
+        # keyposeGoal = None
+        # for keypose in self.state.keyposes:
+        #     xdist = np.abs(keypose.pose.position.x - best_particle[0])**2
+        #     ydist = np.abs(keypose.pose.position.y - best_particle[1])**2
+        #     distToKeypose = np.sqrt(xdist + ydist)
+        #     if distToKeypose < dist:
+        #         dist = distToKeypose
+        #         keyposeGoal = keypose
+            # dist = min(dist, ())
 
     def stirObject(self, object, target, frameFilter: FrameParticleFilter)->bool:
         print("[AGENT]: Entering stirObject({}, {}, {})".format(
@@ -802,10 +842,12 @@ class SFMClient():
         self.ac.point_head(2, 0, 0.8, "base_link")
         self.ac.run_yolo() # get observation
     
+
     def execute_frame(self, frame_name: String):
         self.ac.run_yolo()
         rospy.sleep(5)
         self.execute(frame_name.data)
+        self.update = True
 
     def execute(self, frame_name: str):
         frameFilter = self.frame_filters[frame_name]
@@ -824,7 +866,7 @@ class SFMClient():
                         self.state.action_history))
                     print("[AGENT]: Updating Filters after successful execution")
                     self.update = True
-                    rospy.sleep(rospy.Duration(10))  # sleep for 10s
+                    rospy.sleep(5)  # sleep for 10s
                 else:
                     print("[AGENT]: Precondition {} failed".format(precondition))
         except TypeError:
@@ -832,6 +874,9 @@ class SFMClient():
 
         if frame_name.split("_")[0] == "grasp":
             return self.graspObject(frame_name.split("_", 1)[1], frameFilter)
+        
+        elif frame_name.split("_")[0] == "put":
+            return self.putObject("foo", "bar", frameFilter)
 
         # self.update = False
         # if frame_name.data == 'make_coffee':
