@@ -26,36 +26,65 @@ class State():
         self.robot_pose_sub = rospy.Subscriber(
             "/amcl_pose", PoseWithCovarianceStamped, self.update_pose)
         self.pose = Pose()
-        self.bar_table = PoseStamped()
-        self.bar_table.header.frame_id = "map"
-        self.bar_table.pose.position.x = -1.33155682554
-        self.bar_table.pose.position.y = -9.42210028979
-        self.bar_table.pose.orientation.z = -0.763555768388
-        self.bar_table.pose.orientation.w = 0.645741890047
+        self.cameron_desk = PoseStamped()
+        self.cameron_desk.header.frame_id = "map"
+        self.cameron_desk.pose.position.x = -3.28849729359
+        self.cameron_desk.pose.position.y = 5.16245196023
+        self.cameron_desk.pose.orientation.z = -0.104762630252
+        self.cameron_desk.pose.orientation.w = 0.994497255553
 
-        self.light_table = PoseStamped()
-        self.light_table.header.frame_id = "map"
-        self.light_table.pose.position.x = -1.13065147758
-        self.light_table.pose.position.y = -2.91366557389
-        self.light_table.pose.orientation.z = -0.0920840595321
-        self.light_table.pose.orientation.w = 0.995751236997
+        self.kitchenette = PoseStamped()
+        self.kitchenette.header.frame_id = "map"
+        self.kitchenette.pose.position.x = -24.3778061078
+        self.kitchenette.pose.position.y = 10.2972501758
+        self.kitchenette.pose.orientation.z = -0.359123618168
+        self.kitchenette.pose.orientation.w = 0.933290001486
+
+        self.elevator = PoseStamped()
+        self.elevator.header.frame_id = "map"
+        self.elevator.pose.position.x = -25.3382212272
+        self.elevator.pose.position.y = -0.214239395009
+        self.elevator.pose.orientation.z = 0.932596699117
+        self.elevator.pose.orientation.w = 0.360920208352
+
+        self.cafe = PoseStamped()
+        self.cafe.header.frame_id = "map"
+        self.cafe.pose.position.x = 53.3599001981
+        self.cafe.pose.position.y = 17.7733172747
+        self.cafe.pose.orientation.z = -0.242401881817
+        self.cafe.pose.orientation.w = 0.970175926156
 
 
-        self.collab_table = PoseStamped()
-        self.collab_table.header.frame_id = "map"
-        self.collab_table.pose.position.x = -3.01642181153
-        self.collab_table.pose.position.y = 8.21563250394
-        self.collab_table.pose.orientation.z = -0.0984918944551
-        self.collab_table.pose.orientation.w = 0.995137853127
+        # self.bar_table = PoseStamped()
+        # self.bar_table.header.frame_id = "map"
+        # self.bar_table.pose.position.x = -1.33155682554
+        # self.bar_table.pose.position.y = -9.42210028979
+        # self.bar_table.pose.orientation.z = -0.763555768388
+        # self.bar_table.pose.orientation.w = 0.645741890047
 
-        self.dark_table = PoseStamped()
-        self.dark_table.header.frame_id = "map"
-        self.dark_table.pose.position.x = -1.54031579142
-        self.dark_table.pose.position.y = -7.07256176208
-        self.dark_table.pose.orientation.z = 0.0380964410181
-        self.dark_table.pose.orientation.w = 0.999274067102
+        # self.light_table = PoseStamped()
+        # self.light_table.header.frame_id = "map"
+        # self.light_table.pose.position.x = -1.13065147758
+        # self.light_table.pose.position.y = -2.91366557389
+        # self.light_table.pose.orientation.z = -0.0920840595321
+        # self.light_table.pose.orientation.w = 0.995751236997
 
-        self.keyposes = {'bar_table':self.bar_table, 'light_table':self.light_table, 'collab_table':self.collab_table, 'dark_table':self.dark_table}
+
+        # self.collab_table = PoseStamped()
+        # self.collab_table.header.frame_id = "map"
+        # self.collab_table.pose.position.x = -3.01642181153
+        # self.collab_table.pose.position.y = 8.21563250394
+        # self.collab_table.pose.orientation.z = -0.0984918944551
+        # self.collab_table.pose.orientation.w = 0.995137853127
+
+        # self.dark_table = PoseStamped()
+        # self.dark_table.header.frame_id = "map"
+        # self.dark_table.pose.position.x = -1.61673320814
+        # self.dark_table.pose.position.y = -7.26435249898
+        # self.dark_table.pose.orientation.z = -0.0586793015966
+        # self.dark_table.pose.orientation.w = 0.99827688522
+
+        self.keyposes = {'cameron_desk': self.cameron_desk, 'kitchenette': self.kitchenette, 'elevator': self.elevator, 'cafe':self.cafe} #bar_table':self.bar_table, 'light_table':self.light_table, 'collab_table':self.collab_table, 'dark_table':self.dark_table}
 
     def update_pose(self, pose_msg):
         self.pose = pose_msg.pose.pose
@@ -312,6 +341,7 @@ class ActionClient():
         move_goal.target_pose = keypose
         move_goal.target_pose.header.stamp = rospy.Time.now()
         move_base_client.send_goal(move_goal)
+        # self.cancelNav()
         move_base_client.wait_for_result()
         return move_base_client.get_result()
 
@@ -410,13 +440,13 @@ class SFMClient():
             for prior in object['priors']:
                 priors[self.regions[prior['name']]] = float(prior['weight'])
             self.object_filters[object['name']] = ObjectParticleFilter(
-                50, valid_regions=priors, label=name)
+                50, valid_regions=priors, label=name, mapBox=self.regions['map'])
             self.object_filters[object['name']].publish()
 
         self.frame_filters = {}
         for _, frame in enumerate(self.kb):
             filter = FrameParticleFilter(
-                100, frame.name, frame.preconditions, frame.core_frame_elements)
+                100, frame.name, frame.preconditions, frame.core_frame_elements, mapBox=self.regions['map'])
             filter.publish()
             for cfe in frame.core_frame_elements:
                 filter.add_frame_element(self.object_filters[cfe], cfe)
@@ -435,7 +465,8 @@ class SFMClient():
         # self.start_exp_sub = rospy.Subscriber(
         #     "/start_experiment", String, self.run)
         self.execute_frame_sub = rospy.Subscriber(
-            "/execute", String, self.execute_frame)
+            "/execute", String, self.irosVideo)
+        # self.ac.goToKeyPose(self.state.keyposes['cafe'])
         # keyposeGoal = self.state.keyposes['dark_table']
         # self.ac.goToKeyPose(keyposeGoal) 
         
@@ -753,26 +784,28 @@ class SFMClient():
         rospy.loginfo("[AGENT]: Entering graspObj({}, {})".format(
             object, frameFilter.label))
         objGrasped = False
-        while not frameFilter.converged:
-            rospy.loginfo_throttle(1, "Waiting for filter to converge....")
-            self.searchFor(object)
-            rospy.sleep(5) # let filters update
+        # while not frameFilter.converged:
+        #     rospy.loginfo_throttle(1, "Waiting for filter to converge....")
+        #     self.searchFor(object)
+        rospy.sleep(10) # let filters update
         self.ac.cancelNav()
-        rospy.sleep(5)
+        rospy.sleep(2)
         self.update = False # pause filter updates
-        best_particle = frameFilter.getHighestWeightedParticle()
+        best_particle = frameFilter.maxParticle#getHighestWeightedParticle()
         dist = 1e3
-        keyposeGoal = None
-        for name, keypose in self.state.keyposes.items():
-            xdist = np.abs(keypose.pose.position.x - best_particle[0])**2
-            ydist = np.abs(keypose.pose.position.y - best_particle[1])**2
-            distToKeypose = np.sqrt(xdist + ydist)
-            if distToKeypose < dist:
-                dist = distToKeypose
-                keyposeGoal = keypose
-            # dist = min(dist, ())
-        self.ac.goToKeyPose(keyposeGoal)
-        rospy.sleep(2)     
+        # keyposeGoal = None
+        # for name, keypose in self.state.keyposes.items():
+        #     xdist = np.abs(keypose.pose.position.x - best_particle[0])**2
+        #     ydist = np.abs(keypose.pose.position.y - best_particle[1])**2
+        #     distToKeypose = np.sqrt(xdist + ydist)
+        #     if distToKeypose < dist:
+        #         dist = distToKeypose
+        #         keyposeGoal = keypose
+        #     # dist = min(dist, ())
+        # self.ac.goToKeyPose(keyposeGoal)
+        # rospy.sleep(2)     
+        # self.ac.point_head(0.8, 0.0, 0.8, "base_link")
+        rospy.logwarn("Particle loc: ({:.6f}, {:.6f}, {:.6f}".format(best_particle[0], best_particle[1], best_particle[2]))
         self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
         pick_pose = Pose()
         pick_pose.position.x = best_particle[0]
@@ -866,7 +899,7 @@ class SFMClient():
                         self.state.action_history))
                     print("[AGENT]: Updating Filters after successful execution")
                     self.update = True
-                    rospy.sleep(5)  # sleep for 10s
+                    rospy.sleep(10)  # sleep for 10s
                 else:
                     print("[AGENT]: Precondition {} failed".format(precondition))
         except TypeError:
@@ -1046,6 +1079,37 @@ class SFMClient():
     #             return True
     #         chances-=1
     #     return False
+    def irosVideo(self, msg):
+        # go to Cameron Desk
+        # Run YOLO, add neg region
+        # Go to kitchenette,
+        # Run YOLO, see mug
+        # Grasp Mug
+        # Go to Hallway
+        # run = input("Run? (y/n)")
+        # if run.lower() == 'y':
+        #     self.update = False
+        #     self.ac.goToKeyPose(self.state.keyposes['cameron_desk'])
+        #     rospy.sleep(5)
+        #     self.ac.run_yolo()
+        #     self.update=True
+        #     rospy.sleep(10)
+        #     self.update=False
+        # run = input("Run? (y/n)")
+        # if run.lower() == 'y':
+        self.ac.goToKeyPose(self.state.keyposes['cafe'])
+            # self.ac.goToKeyPose(self.state.keyposes['kitchenette'])
+            # rospy.sleep(5)
+            # self.ac.run_yolo()
+            # self.update=True
+            # self.execute('grasp_mug')
+        #     rospy.sleep(10)
+        #     self.update=False
+        # run = input("Run? (y/n)")
+        # if run.lower() == 'y':
+        return True
+
+
 
     def run(self):
         # while not rospy.is_shutdown():
@@ -1288,6 +1352,7 @@ if __name__ == '__main__':
     foo = SFMClient(experiment_config)
     rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(
         experiment_config['title']))
+    # foo.irosVideo()
     foo.run()
 
     # r = rospy.Rate(1000)

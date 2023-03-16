@@ -1,9 +1,28 @@
 <launch>
     <arg name="experiment_config" default=""/>
     <arg name="record" default="false"/>
+    <arg name="record_bag" default="false"/>
     <node pkg="semantic_frame_mapping" type="SFM.py" name="SFM_client_node" output="screen">
         <param name="sf_dir" value="$(find semantic_frame_mapping)/sf/"/>
         <param name="experiment_config" value="$(arg experiment_config)"/>
         <param name="record" value="$(arg record)"/>
     </node>
+    <!-- <node if="$(arg record_bag)" 
+        pkg="rosbag" 
+        type="record" 
+        name="rosbag_record_node" 
+        args="record -o /home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/iros23_video
+            /tf
+            /map
+            /filter/gauss/grasp_mug
+            /filter/gauss/mug
+            /filter/particles/mug
+            /filter/particles/grasp_mug
+            /move_base/current_goal
+            /move_base/NavfnROS/plan
+            /YOLO/detections_img
+            /head_camera/depth_registered/points
+            "
+        output="log"
+    /> -->
 </launch>

@@ -68,26 +68,29 @@ class StaticObject(object):
 
 
 class ParticleFilter(object):
-    def __init__(self, n, label, valid_regions):
+    def __init__(self, n, label, valid_regions, mapBox):
         self.n = n
         self.Sigma = np.array([[0.02, 0, 0], [0, 0.02, 0], [0, 0, 0.02]])
         self.particles = np.zeros([n, 3])
         self.weights = 1.0/self.n * np.ones([n])
+        self.mapBox = mapBox
         self.valid_regions = {}
         self.negative_regions = []
+        self.skip_regions = None
+        self.converge = False
         try:
             for region, weight in valid_regions.items():
                 self.valid_regions[region] = weight
         except:
             # rospy.logwarn("{} has no valid reigons".format(label))
             self.valid_regions = None
-        rospy.logwarn(label)
-        try:
-            for region, weight in self.valid_regions.items():
-                rospy.logwarn("Region_id: {}, weight: {}, bounds:\n{}".format(
-                    region.name, weight, region.get_bounds()))
-        except:
-            pass
+        # rospy.logwarn(label)
+        # try:
+        #     for region, weight in self.valid_regions.items():
+        #         rospy.logwarn("Region_id: {}, weight: {}, bounds:\n{}".format(
+        #             region.name, weight, region.get_bounds()))
+        # except:
+        #     pass
 
         self.lock = RLock()
         self.reinvigoration_idx = 0
@@ -97,12 +100,16 @@ class ParticleFilter(object):
         self.bgm = BayesianGaussianMixture(
             n_components=10, n_init=10, warm_start=False)
         self.converged = False
+        self.update_count = 0
+        toggle_sub = rospy.Subscriber("toggle_regions", Bool, self.toggle_regions)
         
 
     def getHighestWeightedParticle(self):
         return self.particles[np.argmax(self.weights)]
     
     def add_negative_region(self, region):
+        if self.label == 'mug':
+            self.skip_regions = ['cameron_table']
         self.negative_regions.append(region)
 
     def bgmm(self):
@@ -111,22 +118,24 @@ class ParticleFilter(object):
             # print()
             bgm = self.bgm.fit(self.particles)
         return bgm.means_, bgm.covariances_, bgm.weights_
-
+    def toggle_regions(self, msg):
+        self.converge = True
+        if self.label == 'mug':
+            self.skip_regions = ['cameron_table']
     def reinvigorate(self, particle, valid_region=False):
-        if "table" not in self.label or isinstance(self, FrameParticleFilter):
-            # Random resample in entire map
-            #particle[0] = np.random.uniform(-2, 5)
-            particle[0] = np.random.uniform(-12, 10)
-            # -9 + np.random.random()*10
-            #particle[1] = np.random.uniform(-10, 3)
-            particle[1] = np.random.uniform(-12, 10)
-            # -5 + np.random.random()*6
-            particle[2] = np.random.uniform(0, 1.5)
-        # np.random.random()*2
-        else:
+        if self.label == 'mug' and self.converge:
             # Random resample in a valid region
-            region = list(self.valid_regions.keys())[0]
+            # r = np.random.random()
+            # i = 0
             # for region, weight in self.valid_regions.items():
+            #     r -= weight
+            #     if r <= 0:
+            #         break
+            #     i+=1
+            for regionHash in self.valid_regions.keys():
+                if regionHash.name == 'cafe':
+                    region = regionHash
+                # for region, weight in self.valid_regions.items():
             points = region.cube
             min_x = np.min(points[:, 0])
             max_x = np.max(points[:, 0])
@@ -134,10 +143,79 @@ class ParticleFilter(object):
             max_y = np.max(points[:, 1])
             min_z = np.min(points[:, 2])
             max_z = np.max(points[:, 2])
+            # r = np.random.random()
+            particle[0] = np.random.uniform(min_x, max_x) #min_x + (max_x - min_x)*r
+            particle[1] = np.random.uniform(min_y, max_y) #min_y + (max_y - min_y)*r
+            particle[2] = np.random.uniform(min_z, max_z) #min_z + (max_z - min_z)*r
+        # elif self.label == 'mug' and not self.converge:
+        #     r = np.random.random()
+        #     i = 0
+        #     for region, weight in self.valid_regions.items():
+        #         r -= weight
+        #         if r <= 0:
+        #             break
+        #         i+=1
+        #     if self.skip_regions is not None:
+        #         for regionHash in self.valid_regions.keys():
+        #             if regionHash.name == 'kitchenette':
+        #                 region = regionHash
+        #                 break
+        #     else:
+        #         region = list(self.valid_regions.keys())[i]
+        #     # for region, weight in self.valid_regions.items():
+        #     points = region.cube
+        #     min_x = np.min(points[:, 0])
+        #     max_x = np.max(points[:, 0])
+        #     min_y = np.min(points[:, 1])
+        #     max_y = np.max(points[:, 1])
+        #     min_z = np.min(points[:, 2])
+        #     max_z = np.max(points[:, 2])
+        #     # r = np.random.random()
+        #     particle[0] = np.random.uniform(min_x, max_x) #min_x + (max_x - min_x)*r
+        #     particle[1] = np.random.uniform(min_y, max_y) #min_y + (max_y - min_y)*r
+        #     particle[2] = np.random.uniform(min_z, max_z) #min_z + (max_z - min_z)*r
 
-            particle[0] = min_x + np.random.random()*(max_x - min_x)
-            particle[1] = min_y + np.random.random()*(max_y - min_y)
-            particle[2] = min_z + np.random.random()*(max_z - min_z)
+
+        # if "table" not in self.label or isinstance(self, FrameParticleFilter):
+        #     points = self.mapBox.cube
+        #     min_x = np.min(points[:, 0])
+        #     max_x = np.max(points[:, 0])
+        #     min_y = np.min(points[:, 1])
+        #     max_y = np.max(points[:, 1])
+        #     min_z = np.min(points[:, 2])
+        #     max_z = np.max(points[:, 2])
+        #     r = np.random.random()
+        #     particle[0] = min_x + (max_x - min_x)*r
+        #     particle[1] = min_y + (max_y - min_y)*r
+        #     particle[2] = min_z + (max_z - min_z)*r
+
+
+            # Random resample in entire map
+            #particle[0] = np.random.uniform(-2, 5)
+            # particle[0] = np.random.uniform(-12, 4)
+            # # -9 + np.random.random()*10
+            # #particle[1] = np.random.uniform(-10, 3)
+            # particle[1] = np.random.uniform(-12, 10)
+            # # -5 + np.random.random()*6
+            # particle[2] = np.random.uniform(0, 1.5)
+        # np.random.random()*2
+        else:
+            # Random resample in a valid region
+            # region = list(self.valid_regions.keys())[0]
+            # for region, weight in self.valid_regions.items():
+            region = self.mapBox
+            points = region.cube
+            min_x = np.min(points[:, 0])
+            max_x = np.max(points[:, 0])
+            min_y = np.min(points[:, 1])
+            max_y = np.max(points[:, 1])
+            min_z = np.min(points[:, 2])
+            max_z = np.max(points[:, 2])
+            rospy.logwarn_once("MapBox: ({}, {}, {}) ({}, {}, {})".format(min_x, min_y, min_z, max_x, max_y, max_z))
+            r = np.random.random()
+            particle[0] = np.random.uniform(min_x, max_x) # min_x + (max_x - min_x)*r
+            particle[1] = np.random.uniform(min_y, max_y) #min_y + (max_y - min_y)*r
+            particle[2] = np.random.uniform(min_z, max_z) #min_z + (max_z - min_z)*r
                     # self.reinvigoration_idx+=1
         return particle
 
@@ -304,7 +382,7 @@ class ParticleFilter(object):
                 # blue cube
                 marker.color.b = 1
                 marker.type = marker.CUBE
-            elif self.label == 'cracker_box':
+            elif self.label == 'mug':
                 # green cube
                 marker.color.r = 1
                 marker.type = marker.CUBE
@@ -337,7 +415,7 @@ class ParticleFilter(object):
                 marker.color.r = 1
                 marker.color.b = 1
                 marker.type = marker.SPHERE
-            elif self.label == 'grasp_cracker_box':
+            elif self.label == 'grasp_mug':
                 marker.color.r = 1
                 # marker.color.g = 1
                 marker.type = marker.SPHERE
@@ -352,9 +430,9 @@ class ParticleFilter(object):
 
             marker.action = marker.ADD
             # marker.lifetime = rospy.Duration(10)
-            marker.scale.x = 0.1
-            marker.scale.y = 0.1
-            marker.scale.z = 0.1
+            marker.scale.x = 0.3
+            marker.scale.y = 0.3
+            marker.scale.z = 0.3
             # marker.color.a = 1 if self.weights[i] == max_weight else 0
             if max_weight == min_weight:
                 marker.color.a = 0.8
@@ -363,7 +441,7 @@ class ParticleFilter(object):
                     round((self.weights[i] - min_weight) / (max_weight - min_weight), 2) + 0.45, 1.0)
                 marker.color.a = a
                 if a < 0.6:
-                    marker.color.a = 0.1
+                    marker.color.a = 0.4
                 else:
                     marker.color.a = a
             # marker.color.a = 0.7
@@ -375,18 +453,25 @@ class ParticleFilter(object):
             #     marker.color.a = 0.75
             # else:
             #     marker.color.a = 1.0
-            # maxParticle = self.getHighestWeightedParticle()
+            maxParticle = self.getHighestWeightedParticle()
+            # if self.label == "grasp_cracker_box":
+            #     rospy.logwarn_throttle(1.0, "cracker box maxParticle: ({:.4f}, {:.4f}, {:.4f}".format(maxParticle[0], maxParticle[1], maxParticle[2]))
+            self.maxParticle = copy.deepcopy(maxParticle)
+            # marker.color.a = 1.0
             marker.pose.orientation.w = 1.0
             marker.pose.position.x = self.particles[i, 0] #maxParticle[0]
             marker.pose.position.y = self.particles[i, 1] #maxParticle[1]
             marker.pose.position.z = self.particles[i, 2]#maxParticle[2]
             marker_array.markers.append(marker)
+            # break
         self.marker_pub.publish(marker_array)
 
 
 class ObjectParticleFilter(ParticleFilter):
-    def __init__(self, n, valid_regions, label):
-        super(ObjectParticleFilter, self).__init__(n, label, valid_regions)
+    def __init__(self, n, valid_regions, label, mapBox):
+        if "table" in label:
+            n = 1
+        super(ObjectParticleFilter, self).__init__(n, label, valid_regions, mapBox)
         self.ar_to_obj_map = {4: 'apple_1', 5: 'knife_1', 6: 'knife_2'}
         # self.observation_sub = rospy.Subscriber(
         #     'scene/observations', ObjectDetectionArray, self.add_observation, queue_size=1)
@@ -399,7 +484,7 @@ class ObjectParticleFilter(ParticleFilter):
         self.gauss_pub = rospy.Publisher(
             'filter/gauss/{}'.format(label), MarkerArray, queue_size=10)
         self.latest_bgmm_mean = None
-        self.update_count = 0
+        
         # if self.label == 'spoon':
         #     # 'dining_room': (4.5, 8.5, 0.5, 3.5, 0, 1.5),
         #     dummy_obs = StaticObject('spoon', 6.5, 2, 0.7)
@@ -420,9 +505,9 @@ class ObjectParticleFilter(ParticleFilter):
         #     self.observations.append(dummy_obs)
 
     def publish(self):
-        super(ObjectParticleFilter, self).publish()
-        if self.update_count % 20 != 0:
+        if self.update_count % 20 != 0 or "table" in self.label:
             return
+        super(ObjectParticleFilter, self).publish()
         arr = MarkerArray()
         means, covs, weights = self.bgmm()
         max_idx = np.argmax(weights)
@@ -553,6 +638,8 @@ class ObjectParticleFilter(ParticleFilter):
                     # self.observations.append(obj)
 
     def assign_weight(self, particle):
+        if "table" in self.label:
+            return 1.0
         if len(self.observations) == 0:
             for region in self.negative_regions:
                 # min_x, max_x, min_y, max_y, min_z, max_z = region.get_bounds()
@@ -660,8 +747,8 @@ class ObjectParticleFilter(ParticleFilter):
 
 
 class FrameParticleFilter(ParticleFilter):
-    def __init__(self, n, label, preconditions, core_frame_elements, valid_regions=None):
-        super(FrameParticleFilter, self).__init__(n, label, valid_regions)
+    def __init__(self, n, label, preconditions, core_frame_elements, mapBox, valid_regions=None):
+        super(FrameParticleFilter, self).__init__(n, label, valid_regions, mapBox)
 
         self.marker_pub = rospy.Publisher(
             'filter/particles/{}'.format(label), MarkerArray, queue_size=10)
@@ -681,7 +768,13 @@ class FrameParticleFilter(ParticleFilter):
     def publish(self, gauss_only=False):
         # if not gauss_only:
         super(FrameParticleFilter, self).publish()
-        return
+        # return.
+        if "cracker_box" not in self.label:
+            return
+        if self.update_count % 20 != 0:
+            rospy.logwarn("{} update count = {}".format(self.label, self.update_count))
+            return
+        # return
         arr = MarkerArray()
         means, covs, weights = self.bgmm()
         max_idx = np.argmax(weights)
@@ -693,89 +786,89 @@ class FrameParticleFilter(ParticleFilter):
                 return v
             return v / norm
         n = 2
-        indices = (-weights).argsort()[:n]
+        # indices = (-weights).argsort()[:n]
         count = 0
-        for idx in indices:
-            m, c, _ = means[idx], covs[idx], weights[idx]
+        # for idx in indices:
+        #     m, c, _ = means[idx], covs[idx], weights[idx]
 
-            (eigValues, eigVectors) = np.linalg.eig(c)
-            eigx_n = np.array(
-                [eigVectors[0, 0], eigVectors[0, 1], eigVectors[0, 2]]).reshape(1, 3)
-            eigy_n = - \
-                np.array([eigVectors[1, 0], eigVectors[1, 1],
-                          eigVectors[1, 2]]).reshape(1, 3)
-            eigz_n = np.array(
-                [eigVectors[2, 0], eigVectors[2, 1], eigVectors[2, 2]]).reshape(1, 3)
-            eigx_n = normalize(eigx_n)
-            eigy_n = normalize(eigy_n)
-            eigz_n = normalize(eigz_n)
-            rot_mat = np.hstack([eigx_n.T, eigy_n.T, eigz_n.T])
-            rot = R.from_matrix(rot_mat)
-            quat = rot.as_quat()
-            marker = Marker()
-            marker.id = count
-            count += 1
-            marker.type = Marker.SPHERE
-            marker.action = Marker.ADD
-            marker.pose.position.x = m[0]
-            marker.pose.position.y = m[1]
-            marker.pose.position.z = m[2]
-            marker.header.frame_id = 'map'
-            marker.pose.orientation.x = quat[0]
-            marker.pose.orientation.y = quat[1]
-            marker.pose.orientation.z = quat[2]
-            marker.pose.orientation.w = quat[3]
-            marker.scale.x = eigValues[0]*2
-            marker.scale.y = eigValues[1]*2
-            marker.scale.z = eigValues[2]*2
-            foo = np.sqrt(marker.scale.x**2 + marker.scale.y **
-                          2 + marker.scale.z**2)
-            if foo > 5:
-                break
-            # rospy.logwarn("{} gauss # {} scale is: {}".format(self.label, count, foo))
+        (eigValues, eigVectors) = np.linalg.eig(c)
+        eigx_n = np.array(
+            [eigVectors[0, 0], eigVectors[0, 1], eigVectors[0, 2]]).reshape(1, 3)
+        eigy_n = - \
+            np.array([eigVectors[1, 0], eigVectors[1, 1],
+                        eigVectors[1, 2]]).reshape(1, 3)
+        eigz_n = np.array(
+            [eigVectors[2, 0], eigVectors[2, 1], eigVectors[2, 2]]).reshape(1, 3)
+        eigx_n = normalize(eigx_n)
+        eigy_n = normalize(eigy_n)
+        eigz_n = normalize(eigz_n)
+        rot_mat = np.hstack([eigx_n.T, eigy_n.T, eigz_n.T])
+        rot = R.from_matrix(rot_mat)
+        quat = rot.as_quat()
+        marker = Marker()
+        marker.id = count
+        count += 1
+        marker.type = Marker.SPHERE
+        marker.action = Marker.ADD
+        marker.pose.position.x = m[0]
+        marker.pose.position.y = m[1]
+        marker.pose.position.z = m[2]
+        marker.header.frame_id = 'map'
+        marker.pose.orientation.x = quat[0]
+        marker.pose.orientation.y = quat[1]
+        marker.pose.orientation.z = quat[2]
+        marker.pose.orientation.w = quat[3]
+        marker.scale.x = eigValues[0]*2
+        marker.scale.y = eigValues[1]*2
+        marker.scale.z = eigValues[2]*2
+        foo = np.sqrt(marker.scale.x**2 + marker.scale.y **
+                        2 + marker.scale.z**2)
+            # if foo > 5:
+            #     break
+        rospy.logwarn("{} gauss # {} scale is: {}".format(self.label, count, foo))
 
-            # marker.color.a = 0.5
-            if count > 1:
-                marker.lifetime = rospy.Duration(10)
-            marker.color.a = 0.75 - count*0.2
-            # count+=1
-            if self.label == 'cup':
-                # red cube
-                marker.color.r = 1
+        # marker.color.a = 0.5
+        if count > 1:
+            marker.lifetime = rospy.Duration(10)
+        marker.color.a = 0.75 - count*0.2
+        # count+=1
+        if self.label == 'cup':
+            # red cube
+            marker.color.r = 1
 
-            elif self.label == 'spoon':
-                # blue cube
-                marker.color.b = 1
+        elif self.label == 'spoon':
+            # blue cube
+            marker.color.b = 1
 
-            elif self.label == 'bowl':
-                # green cube
-                marker.color.g = 1
+        elif self.label == 'bowl':
+            # green cube
+            marker.color.g = 1
 
-            elif self.label == 'grasp_master_chef_can':
-                # red sphere
-                marker.color.b = 1
+        elif self.label == 'grasp_master_chef_can':
+            # red sphere
+            marker.color.b = 1
 
-            elif self.label == 'grasp_spoon':
-                # blue sphere
-                marker.color.b = 1
+        elif self.label == 'grasp_spoon':
+            # blue sphere
+            marker.color.b = 1
 
-            elif self.label == 'grasp_mug':
-                # green sphere
-                marker.color.g = 1
+        elif self.label == 'put_cracker_box_on_bar_table':
+            # green sphere
+            marker.color.g = 1
 
-            elif self.label == 'grasp_cracker_box':
-                marker.color.r = 1
-                # marker.color.g = 1
+        elif self.label == 'grasp_cracker_box':
+            marker.color.r = 1
+            # marker.color.g = 1
 
-            elif self.label == 'stir_bowl':
-                marker.color.b = 1
-                marker.color.g = 1
+        elif self.label == 'stir_bowl':
+            marker.color.b = 1
+            marker.color.g = 1
 
-            elif self.label == 'make_coffee':
-                marker.color.b = 1
-                marker.color.r = 1
-            # marker.lifetime = rospy.Duration(10)
-            arr.markers.append(marker)
+        elif self.label == 'make_coffee':
+            marker.color.b = 1
+            marker.color.r = 1
+        # marker.lifetime = rospy.Duration(10)
+        arr.markers.append(marker)
 
         self.gauss_pub.publish(arr)
 
@@ -848,6 +941,7 @@ class FrameParticleFilter(ParticleFilter):
         return measurement*context
 
     def update_filter(self, state):
+        self.update_count += 1
         if self.label.startswith("grasp") and self.frame_element_filters[self.frame_elements[0]].converged:
             rospy.logwarn_once("{} converged".format(self.label))
             self.converged = True
