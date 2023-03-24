@@ -1234,6 +1234,7 @@ class SFMClient():
         # self.run_observation_routine()
         while not rospy.is_shutdown():
             if self.update:
+                rospy.logwarn_throttle(1, "UPdating filters")
                 self.update_filters(publish=True)
                 # self.publish_regions()
             else:

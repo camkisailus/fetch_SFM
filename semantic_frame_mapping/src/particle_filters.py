@@ -22,7 +22,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Pose, PointStamped
 from std_msgs.msg import Bool
 from semantic_frame_mapping.msg import ObjectDetection, ObjectDetectionArray
-from apriltag_ros.msg import AprilTagDetectionArray
+# from apriltag_ros.msg import AprilTagDetectionArray
 
 
 class StaticObject(object):
@@ -485,8 +485,8 @@ class ObjectParticleFilter(ParticleFilter):
         self.ar_to_obj_map = {4: 'apple_1', 5: 'knife_1', 6: 'knife_2'}
         # self.observation_sub = rospy.Subscriber(
         #     'scene/observations', ObjectDetectionArray, self.add_observation, queue_size=1)
-        self.apriltag_sub = rospy.Subscriber(
-            'tag_detections', AprilTagDetectionArray, self.handle_ar_detection, queue_size=1)
+        # self.apriltag_sub = rospy.Subscriber(
+        #     'tag_detections', AprilTagDetectionArray, self.handle_ar_detection, queue_size=1)
 
         self.marker_pub = rospy.Publisher(
             'filter/particles/{}'.format(label), MarkerArray, queue_size=10)
@@ -870,7 +870,7 @@ class FrameParticleFilter(ParticleFilter):
             marker.color.r = 1
             # marker.color.g = 1
 
-        elif self.label == 'stir_bowl':
+        elif self.label == 'make_cereal_bowl':
             marker.color.b = 1
             marker.color.g = 1
 

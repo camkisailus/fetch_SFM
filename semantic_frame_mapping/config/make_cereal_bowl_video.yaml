@@ -3,7 +3,7 @@
 title: "make_cereal_bowl_video"
 description: ""
 regions:
-  - name: "lab"
+  - name: "map"
     points:
       - -5.414, -0.266, 0
       - 2.066, -0.266, 0
@@ -14,7 +14,18 @@ regions:
       - 2.066, 18.879, 1.5
       - -6.005, 18.879, 1.5
   
-    - name: "collab"
+  - name: "lab"
+    points:
+      - -5.414, -0.266, 0
+      - 2.066, -0.266, 0
+      - 2.066, 12.347, 0
+      - -6.005, 12.347, 0
+      - -5.414, -0.266, 1.5
+      - 2.066, -0.266, 1.5
+      - 2.066, 12.347, 1.5
+      - -6.005, 12.347, 1.5
+
+  - name: "collab"
     points:
       - -5.106, 15.252, 0
       - 0.354, 15.252, 0
@@ -50,12 +61,12 @@ objects:
   - name: "bowl"
     priors:
       - name: "collab"
-        weight: 0.5
+        weight: 1
 
   - name: "cracker_box"
     priors:
       - name: "lab"
-        weight: 0.5      
+        weight: 1      
   # - name: "master_chef_can"
   #   priors:
   #     - name: "collab"
