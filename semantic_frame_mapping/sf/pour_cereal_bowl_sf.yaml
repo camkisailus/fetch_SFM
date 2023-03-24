@@ -1,0 +1,12 @@
+# semantic frame
+# pour_bowl_sf.yaml
+
+name: pour_cereal_bowl
+description: pour contents of cracker box into bowl
+frame_elements:
+  - name: cracker_box 
+    is_core: True
+  - name: bowl
+    is_core: True
+preconditions:
+  - name: grasp_cracker_box

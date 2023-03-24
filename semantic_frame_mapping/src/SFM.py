@@ -26,33 +26,49 @@ class State():
         self.robot_pose_sub = rospy.Subscriber(
             "/amcl_pose", PoseWithCovarianceStamped, self.update_pose)
         self.pose = Pose()
-        self.cameron_desk = PoseStamped()
-        self.cameron_desk.header.frame_id = "map"
-        self.cameron_desk.pose.position.x = -3.28849729359
-        self.cameron_desk.pose.position.y = 5.16245196023
-        self.cameron_desk.pose.orientation.z = -0.104762630252
-        self.cameron_desk.pose.orientation.w = 0.994497255553
+        
+        self.lab_table_1 = PoseStamped()
+        self.lab_table_1.header.frame_id = "map"
+        self.lab_table_1.pose.position.x = -0.062
+        self.lab_table_1.pose.position.y = 2.168
+        self.lab_table_1.pose.orientation.z = 0.514
+        self.lab_table_1.pose.orientation.w = 0.857
+        
+        self.table_collab = PoseStamped()
+        self.table_collab.header.frame_id = "map"
+        self.table_collab.pose.position.x = -4.367
+        self.table_collab.pose.position.y = 16.978
+        self.table_collab.pose.orientation.z = -0.036
+        self.table_collab.pose.orientation.w = 0.999
+        
+        
+        # self.cameron_desk = PoseStamped()
+        # self.cameron_desk.header.frame_id = "map"
+        # self.cameron_desk.pose.position.x = -3.28849729359
+        # self.cameron_desk.pose.position.y = 5.16245196023
+        # self.cameron_desk.pose.orientation.z = -0.104762630252
+        # self.cameron_desk.pose.orientation.w = 0.994497255553
 
-        self.kitchenette = PoseStamped()
-        self.kitchenette.header.frame_id = "map"
-        self.kitchenette.pose.position.x = -24.3778061078
-        self.kitchenette.pose.position.y = 10.2972501758
-        self.kitchenette.pose.orientation.z = -0.359123618168
-        self.kitchenette.pose.orientation.w = 0.933290001486
+        # self.kitchenette = PoseStamped()
+        # self.kitchenette.header.frame_id = "map"
+        # self.kitchenette.pose.position.x = -24.3778061078
+        # self.kitchenette.pose.position.y = 10.2972501758
+        # self.kitchenette.pose.orientation.z = -0.359123618168
+        # self.kitchenette.pose.orientation.w = 0.933290001486
 
-        self.elevator = PoseStamped()
-        self.elevator.header.frame_id = "map"
-        self.elevator.pose.position.x = -25.3382212272
-        self.elevator.pose.position.y = -0.214239395009
-        self.elevator.pose.orientation.z = 0.932596699117
-        self.elevator.pose.orientation.w = 0.360920208352
+        # self.elevator = PoseStamped()
+        # self.elevator.header.frame_id = "map"
+        # self.elevator.pose.position.x = -25.3382212272
+        # self.elevator.pose.position.y = -0.214239395009
+        # self.elevator.pose.orientation.z = 0.932596699117
+        # self.elevator.pose.orientation.w = 0.360920208352
 
-        self.cafe = PoseStamped()
-        self.cafe.header.frame_id = "map"
-        self.cafe.pose.position.x = 53.3599001981
-        self.cafe.pose.position.y = 17.7733172747
-        self.cafe.pose.orientation.z = -0.242401881817
-        self.cafe.pose.orientation.w = 0.970175926156
+        # self.cafe = PoseStamped()
+        # self.cafe.header.frame_id = "map"
+        # self.cafe.pose.position.x = 53.3599001981
+        # self.cafe.pose.position.y = 17.7733172747
+        # self.cafe.pose.orientation.z = -0.242401881817
+        # self.cafe.pose.orientation.w = 0.970175926156
 
 
         # self.bar_table = PoseStamped()
@@ -84,7 +100,7 @@ class State():
         # self.dark_table.pose.orientation.z = -0.0586793015966
         # self.dark_table.pose.orientation.w = 0.99827688522
 
-        self.keyposes = {'cameron_desk': self.cameron_desk, 'kitchenette': self.kitchenette, 'elevator': self.elevator, 'cafe':self.cafe} #bar_table':self.bar_table, 'light_table':self.light_table, 'collab_table':self.collab_table, 'dark_table':self.dark_table}
+        self.keyposes = {'table_collab': self.table_collab, 'lab': self.lab_table_1} # 'elevator': self.elevator, 'cafe':self.cafe} #bar_table':self.bar_table, 'light_table':self.light_table, 'collab_table':self.collab_table, 'dark_table':self.dark_table}
 
     def update_pose(self, pose_msg):
         self.pose = pose_msg.pose.pose

@@ -47,10 +47,15 @@ regions:
   #     - -17.680, 21.880, 1.5
 
 objects:
-  - name: "mug"
+  - name: "bowl"
     priors:
-      - name: "cafe"
+      - name: "collab"
         weight: 0.5
+
+  - name: "cracker_box"
+    priors:
+      - name: "lab"
+        weight: 0.5      
   # - name: "master_chef_can"
   #   priors:
   #     - name: "collab"
@@ -65,7 +70,7 @@ objects:
   #       weight: 1.0
 frames:
   - "grasp_cracker_box"
-  - "pour_bowl"
+  - "pour_cereal_bowl"
   # - "grasp_master_chef_can"
   # - "put_cracker_box_on_bar_table"
   # - "grasp_mustard_bottle"
