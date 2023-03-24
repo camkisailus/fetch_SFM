@@ -386,11 +386,16 @@ class ParticleFilter(object):
                 # green cube
                 marker.color.r = 1
                 marker.type = marker.CUBE
-            elif self.label == 'soup':
+            # elif self.label == 'soup':
+            #     # purple cube
+            #     marker.color.r = 1
+            #     marker.color.b = 1
+            #     marker.type = marker.CUBE
+            elif self.label == 'bowl':
                 # purple cube
                 marker.color.r = 1
                 marker.color.b = 1
-                marker.type = marker.CUBE
+                marker.type = marker.CUBE    
             elif self.label == 'mustard_bottle':
                 marker.color.r = 1
                 marker.color.g = 1
@@ -415,10 +420,15 @@ class ParticleFilter(object):
                 marker.color.r = 1
                 marker.color.b = 1
                 marker.type = marker.SPHERE
-            elif self.label == 'grasp_mug':
+            elif self.label == 'pour_cereal_bowl':
                 marker.color.r = 1
                 # marker.color.g = 1
                 marker.type = marker.SPHERE
+            
+            # elif self.label == 'grasp_mug':
+            #     marker.color.r = 1
+            #     # marker.color.g = 1
+            #     marker.type = marker.SPHERE
             # elif self.label == 'stir_bowl':
             #     marker.color.b = 1
             #     marker.color.g = 1
