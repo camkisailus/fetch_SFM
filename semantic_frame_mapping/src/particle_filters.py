@@ -22,7 +22,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Pose, PointStamped
 from std_msgs.msg import Bool
 from semantic_frame_mapping.msg import ObjectDetection, ObjectDetectionArray
-# from apriltag_ros.msg import AprilTagDetectionArray
+from apriltag_ros.msg import AprilTagDetectionArray
 
 
 class StaticObject(object):
@@ -375,15 +375,15 @@ class ParticleFilter(object):
             marker.id = i
             marker.header.frame_id = 'map'
             if self.label == 'knife':
-                # red cube
+                # green cube
                 marker.color.g = 1
                 marker.type = marker.CUBE
             elif self.label == 'master_chef_can':
                 # blue cube
                 marker.color.b = 1
                 marker.type = marker.CUBE
-            elif self.label == 'mug':
-                # green cube
+            elif self.label == 'cracker_box':
+                # red cube
                 marker.color.r = 1
                 marker.type = marker.CUBE
             # elif self.label == 'soup':
@@ -393,16 +393,16 @@ class ParticleFilter(object):
             #     marker.type = marker.CUBE
             elif self.label == 'bowl':
                 # purple cube
-                marker.color.r = 1
+                # marker.color.r = 1
                 marker.color.b = 1
-                marker.type = marker.CUBE    
+                marker.type = marker.SPHERE  
             elif self.label == 'mustard_bottle':
                 marker.color.r = 1
                 marker.color.g = 1
                 marker.type = marker.CUBE
-            elif self.label == 'grasp_mustard_bottle':
+            elif self.label == 'grasp_cracker_box':
                 marker.color.r = 1
-                marker.color.g = 1
+                # marker.color.g = 1
                 marker.type = marker.SPHERE
             elif self.label == 'grasp_master_chef_can':
                 # red sphere
@@ -421,8 +421,9 @@ class ParticleFilter(object):
                 marker.color.b = 1
                 marker.type = marker.SPHERE
             elif self.label == 'pour_cereal_bowl':
-                marker.color.r = 1
+                # marker.color.r = 1
                 # marker.color.g = 1
+                marker.color.g = 1
                 marker.type = marker.SPHERE
             
             # elif self.label == 'grasp_mug':
@@ -440,9 +441,9 @@ class ParticleFilter(object):
 
             marker.action = marker.ADD
             # marker.lifetime = rospy.Duration(10)
-            marker.scale.x = 0.3
-            marker.scale.y = 0.3
-            marker.scale.z = 0.3
+            marker.scale.x = 0.1
+            marker.scale.y = 0.1
+            marker.scale.z = 0.1
             # marker.color.a = 1 if self.weights[i] == max_weight else 0
             if max_weight == min_weight:
                 marker.color.a = 0.8
@@ -482,11 +483,11 @@ class ObjectParticleFilter(ParticleFilter):
         if "table" in label:
             n = 1
         super(ObjectParticleFilter, self).__init__(n, label, valid_regions, mapBox)
-        self.ar_to_obj_map = {4: 'apple_1', 5: 'knife_1', 6: 'knife_2'}
+        self.ar_to_obj_map = {0: 'bowl'}
         # self.observation_sub = rospy.Subscriber(
         #     'scene/observations', ObjectDetectionArray, self.add_observation, queue_size=1)
-        # self.apriltag_sub = rospy.Subscriber(
-        #     'tag_detections', AprilTagDetectionArray, self.handle_ar_detection, queue_size=1)
+        self.apriltag_sub = rospy.Subscriber(
+            'tag_detections', AprilTagDetectionArray, self.handle_ar_detection, queue_size=1)
 
         self.marker_pub = rospy.Publisher(
             'filter/particles/{}'.format(label), MarkerArray, queue_size=10)
@@ -494,6 +495,7 @@ class ObjectParticleFilter(ParticleFilter):
         self.gauss_pub = rospy.Publisher(
             'filter/gauss/{}'.format(label), MarkerArray, queue_size=10)
         self.latest_bgmm_mean = None
+        self.handle_ar = False
         
         # if self.label == 'spoon':
         #     # 'dining_room': (4.5, 8.5, 0.5, 3.5, 0, 1.5),
@@ -515,9 +517,10 @@ class ObjectParticleFilter(ParticleFilter):
         #     self.observations.append(dummy_obs)
 
     def publish(self):
-        if self.update_count % 20 != 0 or "table" in self.label:
-            return
+        # if self.update_count % 20 != 0 or "table" in self.label:
+        #     return
         super(ObjectParticleFilter, self).publish()
+        return
         arr = MarkerArray()
         means, covs, weights = self.bgmm()
         max_idx = np.argmax(weights)
@@ -594,20 +597,21 @@ class ObjectParticleFilter(ParticleFilter):
             observation.publish()
 
     def handle_ar_detection(self, msg):
-        for detection in msg.detections:
-            obj_label = self.ar_to_obj_map[detection.id[0]]
-            if obj_label.split("_")[0] == self.label:
-                new_obj = True
-                for obs in self.observations:
-                    if obs.label == obj_label:
-                        obs.update_position(detection.pose.pose.pose.position.x,
-                                            detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z, rospy.Time.now())
-                        new_obj = False
-                if new_obj:
-                    print("Adding new observation for {}".format(obj_label))
-                    obj = StaticObject(obj_label, detection.pose.pose.pose.position.x,
-                                       detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z, rospy.Time.now())
-                    self.observations.append(obj)
+        if self.handle_ar:
+            for detection in msg.detections:
+                obj_label = self.ar_to_obj_map[detection.id[0]]
+                if obj_label.split("_")[0] == self.label:
+                    new_obj = True
+                    for obs in self.observations:
+                        if obs.label == obj_label:
+                            obs.update_position(detection.pose.pose.pose.position.x,
+                                                detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z, rospy.Time.now())
+                            new_obj = False
+                    if new_obj:
+                        print("Adding new observation for {}".format(obj_label))
+                        obj = StaticObject(obj_label, detection.pose.pose.pose.position.x,
+                                        detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z, rospy.Time.now())
+                        self.observations.append(obj)
 
     def add_observation_from_config(self, x, y, z):
         self.observations.append(StaticObject(self.label, x, y, z))
@@ -779,12 +783,12 @@ class FrameParticleFilter(ParticleFilter):
         # if not gauss_only:
         super(FrameParticleFilter, self).publish()
         # return.
-        if "cracker_box" not in self.label:
-            return
-        if self.update_count % 20 != 0:
-            rospy.logwarn("{} update count = {}".format(self.label, self.update_count))
-            return
-        # return
+        # if "cracker_box" not in self.label:
+        #     return
+        # if self.update_count % 20 != 0:
+        #     # rospy.logwarn("{} update count = {}".format(self.label, self.update_count))
+        #     return
+        return
         arr = MarkerArray()
         means, covs, weights = self.bgmm()
         max_idx = np.argmax(weights)

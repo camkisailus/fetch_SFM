@@ -7,22 +7,21 @@
         <param name="experiment_config" value="$(arg experiment_config)"/>
         <param name="record" value="$(arg record)"/>
     </node>
-    <!-- <node if="$(arg record_bag)" 
+    <node
         pkg="rosbag" 
         type="record" 
         name="rosbag_record_node" 
-        args="record -o /home/cuhsailus/Desktop/Research/Spring_22/fetch_sfm_ws/iros23_video
+        args="record -o /home/cuhsailus/Desktop/pour_cracker_boxDEMO
             /tf
             /map
-            /filter/gauss/grasp_mug
-            /filter/gauss/mug
-            /filter/particles/mug
-            /filter/particles/grasp_mug
-            /move_base/current_goal
-            /move_base/NavfnROS/plan
+            /filter/particles/bowl
+            /filter/particles/cracker_box
+            /filter/particles/grasp_cracker_box
+            /filter/particles/pour_cereal_bowl
             /YOLO/detections_img
             /head_camera/depth_registered/points
+            /planning_scene
             "
         output="log"
-    /> -->
+    />
 </launch>

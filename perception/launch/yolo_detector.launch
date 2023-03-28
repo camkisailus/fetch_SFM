@@ -1,6 +1,6 @@
 <launch>
     <node pkg="perception" type="yolo_detection_node.py" name="YOLO_detector" output="screen">
-        <param name="model_weights" value="/home/cuhsailus/Desktop/Research/22_academic_year/yolov7/weights/epoch_024.pt"/>
+        <param name="model_weights" value="$(find perception)/config/epoch_024.pt"/>
     </node>
     <!-- <node pkg="pe/rception" type="detection_projector_node.py" name="Detection_Projector" output="screen"/> -->
 </launch>

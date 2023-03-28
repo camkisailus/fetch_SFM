@@ -60,7 +60,7 @@ regions:
 objects:
   - name: "bowl"
     priors:
-      - name: "collab"
+      - name: "lab"
         weight: 1
 
   - name: "cracker_box"

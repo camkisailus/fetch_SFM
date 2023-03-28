@@ -1128,6 +1128,44 @@ class SFMClient():
 
 
     def run(self):
+
+        '''
+            Pour Cheezit into Bowl demo
+        '''
+        ## initialize filters
+        rospy.loginfo("Updating filters 100 times")
+        for ii in range(50):
+            self.update_filters(publish=True)
+        ## Run Detection
+        rospy.logwarn("Running Detections")
+        self.ac.run_yolo()
+        self.object_filters['bowl'].handle_ar = True
+        rospy.logwarn("Updating filters 100 times")
+        ## Update Filters 100 times
+        for ii in range(100):
+            self.update_filters(publish=True)
+        rospy.logwarn("Pour crackerbox into bowl")
+        ## Call action client pick with mode 3
+        best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
+        self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
+        pick_pose = Pose()
+        pick_pose.position.x = best_particle[0]
+        pick_pose.position.y = best_particle[1]
+        pick_pose.position.z = best_particle[2]
+        if self.ac.pick(mode=0, goal=pick_pose):
+            rospy.logwarn("Picked crackerbox")
+            self.state.add_action_to_action_history("grasp_cracker_box")
+            for ii in range(100):
+                self.update_filters(publish=True)
+            rospy.logwarn("Pouring crackerbox into bowl")
+            best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
+            self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
+            self.ac.pick(mode=3,goal=None)
+            
+
+
+
+
         # while not rospy.is_shutdown():
         #     rospy.logwarn("Going to collab table")
         #     suc = self.ac.goToKeyPose(self.state.collab_table)
@@ -1232,13 +1270,13 @@ class SFMClient():
         #     self.update_filters(publish=True)
         # rospy.logwarn("Running observation routine")
         # self.run_observation_routine()
-        while not rospy.is_shutdown():
-            if self.update:
-                rospy.logwarn_throttle(1, "UPdating filters")
-                self.update_filters(publish=True)
-                # self.publish_regions()
-            else:
-                pass
+        # while not rospy.is_shutdown():
+        #     if self.update:
+        #         # rospy.logwarn_throttle(1, "UPdating filters")
+        #         self.update_filters(publish=True)
+        #         # self.publish_regions()
+        #     else:
+        #         pass
 
         # for step in self.experiment_config['steps']:
         #     if step == "Update Filters":
@@ -1369,6 +1407,12 @@ if __name__ == '__main__':
     foo = SFMClient(experiment_config)
     rospy.loginfo("SFM Client successfully initialized... Beginning {}".format(
         experiment_config['title']))
+    # while not rospy.is_shutdown():
+    #     choice = input("Press y to run")
+    #     if choice == 'y':
+    #         foo.run()
+    #     rospy.spin()
+      
     # foo.irosVideo()
     foo.run()
 
