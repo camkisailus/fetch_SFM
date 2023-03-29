@@ -800,26 +800,26 @@ class SFMClient():
         rospy.loginfo("[AGENT]: Entering graspObj({}, {})".format(
             object, frameFilter.label))
         objGrasped = False
-        # while not frameFilter.converged:
-        #     rospy.loginfo_throttle(1, "Waiting for filter to converge....")
-        #     self.searchFor(object)
+        while not frameFilter.converged:
+            rospy.loginfo_throttle(1, "Waiting for filter to converge....")
+            self.searchFor(object)
         rospy.sleep(10) # let filters update
         self.ac.cancelNav()
         rospy.sleep(2)
         self.update = False # pause filter updates
         best_particle = frameFilter.maxParticle#getHighestWeightedParticle()
         dist = 1e3
-        # keyposeGoal = None
-        # for name, keypose in self.state.keyposes.items():
-        #     xdist = np.abs(keypose.pose.position.x - best_particle[0])**2
-        #     ydist = np.abs(keypose.pose.position.y - best_particle[1])**2
-        #     distToKeypose = np.sqrt(xdist + ydist)
-        #     if distToKeypose < dist:
-        #         dist = distToKeypose
-        #         keyposeGoal = keypose
-        #     # dist = min(dist, ())
-        # self.ac.goToKeyPose(keyposeGoal)
-        # rospy.sleep(2)     
+        keyposeGoal = None
+        for name, keypose in self.state.keyposes.items():
+            xdist = np.abs(keypose.pose.position.x - best_particle[0])**2
+            ydist = np.abs(keypose.pose.position.y - best_particle[1])**2
+            distToKeypose = np.sqrt(xdist + ydist)
+            if distToKeypose < dist:
+                dist = distToKeypose
+                keyposeGoal = keypose
+            # dist = min(dist, ())
+        self.ac.goToKeyPose(keyposeGoal)
+        rospy.sleep(2)     
         # self.ac.point_head(0.8, 0.0, 0.8, "base_link")
         rospy.logwarn("Particle loc: ({:.6f}, {:.6f}, {:.6f}".format(best_particle[0], best_particle[1], best_particle[2]))
         self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
@@ -1132,35 +1132,38 @@ class SFMClient():
         '''
             Pour Cheezit into Bowl demo
         '''
+
+
+        self.execute_frame('pour_cereal_bowl')
         ## initialize filters
-        rospy.loginfo("Updating filters 100 times")
-        for ii in range(50):
-            self.update_filters(publish=True)
-        ## Run Detection
-        rospy.logwarn("Running Detections")
-        self.ac.run_yolo()
-        self.object_filters['bowl'].handle_ar = True
-        rospy.logwarn("Updating filters 100 times")
-        ## Update Filters 100 times
-        for ii in range(100):
-            self.update_filters(publish=True)
-        rospy.logwarn("Pour crackerbox into bowl")
-        ## Call action client pick with mode 3
-        best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
-        self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
-        pick_pose = Pose()
-        pick_pose.position.x = best_particle[0]
-        pick_pose.position.y = best_particle[1]
-        pick_pose.position.z = best_particle[2]
-        if self.ac.pick(mode=0, goal=pick_pose):
-            rospy.logwarn("Picked crackerbox")
-            self.state.add_action_to_action_history("grasp_cracker_box")
-            for ii in range(100):
-                self.update_filters(publish=True)
-            rospy.logwarn("Pouring crackerbox into bowl")
-            best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
-            self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
-            self.ac.pick(mode=3,goal=None)
+        # rospy.logwarn("Updating filters 50 times")
+        # for ii in range(50):
+        #     self.update_filters(publish=True)
+        # ## Run Detection
+        # rospy.logwarn("Running Detections")
+        # self.ac.run_yolo()
+        # self.object_filters['bowl'].handle_ar = True
+        # rospy.logwarn("Updating filters 100 times")
+        # ## Update Filters 100 times
+        # for ii in range(100):
+        #     self.update_filters(publish=True)
+        # rospy.logwarn("Pour crackerbox into bowl")
+        # ## Call action client pick with mode 3
+        # best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
+        # self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
+        # pick_pose = Pose()
+        # pick_pose.position.x = best_particle[0]
+        # pick_pose.position.y = best_particle[1]
+        # pick_pose.position.z = best_particle[2]
+        # if self.ac.pick(mode=0, goal=pick_pose):
+        #     rospy.logwarn("Picked crackerbox")
+        #     self.state.add_action_to_action_history("grasp_cracker_box")
+        #     for ii in range(100):
+        #         self.update_filters(publish=True)
+        #     rospy.logwarn("Pouring crackerbox into bowl")
+        #     best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
+        #     self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
+        #     self.ac.pick(mode=3,goal=None)
             
 
 

@@ -7,7 +7,7 @@
         <param name="experiment_config" value="$(arg experiment_config)"/>
         <param name="record" value="$(arg record)"/>
     </node>
-    <node
+    <!-- <node
         pkg="rosbag" 
         type="record" 
         name="rosbag_record_node" 
@@ -23,5 +23,5 @@
             /planning_scene
             "
         output="log"
-    />
+    /> -->
 </launch>
