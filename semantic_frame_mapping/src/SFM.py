@@ -880,6 +880,17 @@ class SFMClient():
         print("[AGENT]: Entering pourObject({}, {}, {})".format(
             object, target, frameFilter.label))
         # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to pour obj into target
+        keyposeGoal = self.state.keyposes['table_collab']
+        self.ac.goToKeyPose(keyposeGoal)
+        self.ac.point_head(1, 0, 0.8, 'base_link')
+        for ii in range(100):
+                self.update_filters(publish=True)
+        rospy.logwarn("Pouring crackerbox into bowl")
+        best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
+        self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
+        self.ac.pick(mode=3,goal=None)
+        return True
+
 
     def searchFor(self, object_name): #returns next beleived pose position
         # self.update = False
@@ -1135,13 +1146,24 @@ class SFMClient():
 
 
         self.execute_frame('pour_cereal_bowl')
+        #OR
+        #the step by step method
         ## initialize filters
-        # rospy.logwarn("Updating filters 50 times")
-        # for ii in range(50):
-        #     self.update_filters(publish=True)
-        # ## Run Detection
-        # rospy.logwarn("Running Detections")
-        # self.ac.run_yolo()
+        rospy.logwarn("Updating filters 50 times")
+        for ii in range(50):
+            self.update_filters(publish=True)
+        ## Run Detection
+        rospy.logwarn("Running Detections")
+        self.ac.run_yolo()
+        if self.graspObject('cracker_box', 'grasp_cracker_box'):
+            rospy.logwarn("Picked crackerbox")
+            self.object_filters['bowl'].handle_ar = True
+            self.pourObject('bowl', 'pour_cereal_bowl')            
+            # best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
+            # self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
+            # self.ac.pick(mode=3,goal=None)
+
+
         # self.object_filters['bowl'].handle_ar = True
         # rospy.logwarn("Updating filters 100 times")
         # ## Update Filters 100 times
