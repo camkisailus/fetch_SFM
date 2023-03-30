@@ -1145,9 +1145,11 @@ class SFMClient():
         '''
 
 
-        self.execute_frame('pour_cereal_bowl')
+        # self.execute_frame('pour_cereal_bowl')
         #OR
         #the step by step method
+        frame_name = 'grasp_cracker_box'
+        frameFilter = self.frame_filters[frame_name]
         ## initialize filters
         rospy.logwarn("Updating filters 50 times")
         for ii in range(50):
@@ -1155,7 +1157,8 @@ class SFMClient():
         ## Run Detection
         rospy.logwarn("Running Detections")
         self.ac.run_yolo()
-        if self.graspObject('cracker_box', 'grasp_cracker_box'):
+        if self.graspObject(frame_name.split("_", 1)[1], frameFilter):
+        # if self.graspObject("cracker_box", "grasp_cracker_box_sf"):
             rospy.logwarn("Picked crackerbox")
             self.object_filters['bowl'].handle_ar = True
             self.pourObject('bowl', 'pour_cereal_bowl')            
