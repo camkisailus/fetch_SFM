@@ -486,6 +486,7 @@ class ObjectParticleFilter(ParticleFilter):
         self.ar_to_obj_map = {0: 'bowl'}
         # self.observation_sub = rospy.Subscriber(
         #     'scene/observations', ObjectDetectionArray, self.add_observation, queue_size=1)
+        self.handle_ar = False
         self.apriltag_sub = rospy.Subscriber(
             'tag_detections', AprilTagDetectionArray, self.handle_ar_detection, queue_size=1)
 
@@ -495,7 +496,6 @@ class ObjectParticleFilter(ParticleFilter):
         self.gauss_pub = rospy.Publisher(
             'filter/gauss/{}'.format(label), MarkerArray, queue_size=10)
         self.latest_bgmm_mean = None
-        self.handle_ar = False
         
         # if self.label == 'spoon':
         #     # 'dining_room': (4.5, 8.5, 0.5, 3.5, 0, 1.5),
@@ -517,10 +517,10 @@ class ObjectParticleFilter(ParticleFilter):
         #     self.observations.append(dummy_obs)
 
     def publish(self):
-        # if self.update_count % 20 != 0 or "table" in self.label:
-        #     return
         super(ObjectParticleFilter, self).publish()
-        return
+        if self.update_count % 50 != 0 or "table" in self.label:
+            return
+        # return
         arr = MarkerArray()
         means, covs, weights = self.bgmm()
         max_idx = np.argmax(weights)
@@ -617,7 +617,8 @@ class ObjectParticleFilter(ParticleFilter):
         self.observations.append(StaticObject(self.label, x, y, z))
 
     def add_observation(self, detection):
-        # self.converged = True
+        self.converged = True
+        rospy.logwarn(f"!!!!{self.label} has converged!!!!")
         newObj = True
         for obs in self.observations:
             if obs.label == detection.label:
@@ -957,7 +958,7 @@ class FrameParticleFilter(ParticleFilter):
     def update_filter(self, state):
         self.update_count += 1
         if self.label.startswith("grasp") and self.frame_element_filters[self.frame_elements[0]].converged:
-            rospy.logwarn_once("{} converged".format(self.label))
+            rospy.logwarn("!!!!!!{} converged!!!!!!!".format(self.label))
             self.converged = True
         with self.lock:
             self.kisailus_resample()

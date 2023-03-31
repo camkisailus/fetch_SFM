@@ -29,18 +29,26 @@ class State():
         
         self.lab_table_1 = PoseStamped()
         self.lab_table_1.header.frame_id = "map"
-        self.lab_table_1.pose.position.x = -0.062
-        self.lab_table_1.pose.position.y = 2.168
-        self.lab_table_1.pose.orientation.z = 0.514
-        self.lab_table_1.pose.orientation.w = 0.857
+        self.lab_table_1.pose.position.x = 0.00525866035576
+        self.lab_table_1.pose.position.y = 2.30981243854
+        self.lab_table_1.pose.orientation.z = 0.581420008308
+        self.lab_table_1.pose.orientation.w = 0.813603572963
+
+        self.lab_table_d = PoseStamped()
+        self.lab_table_d.header.frame_id = "map"
+        self.lab_table_d.pose.position.x = 0.224
+        self.lab_table_d.pose.position.y = 5.864
+        self.lab_table_d.pose.orientation.z = 0.742
+        self.lab_table_d.pose.orientation.w = 0.670
         
-        self.table_collab = PoseStamped()
-        self.table_collab.header.frame_id = "map"
-        self.table_collab.pose.position.x = -4.367
-        self.table_collab.pose.position.y = 16.978
-        self.table_collab.pose.orientation.z = -0.036
-        self.table_collab.pose.orientation.w = 0.999
+        # self.table_collab = PoseStamped()
+        # self.table_collab.header.frame_id = "map"
+        # self.table_collab.pose.position.x = -4.367
+        # self.table_collab.pose.position.y = 16.978
+        # self.table_collab.pose.orientation.z = -0.036
+        # self.table_collab.pose.orientation.w = 0.999
         
+        self.grasped_object = None
         
         # self.cameron_desk = PoseStamped()
         # self.cameron_desk.header.frame_id = "map"
@@ -100,7 +108,7 @@ class State():
         # self.dark_table.pose.orientation.z = -0.0586793015966
         # self.dark_table.pose.orientation.w = 0.99827688522
 
-        self.keyposes = {'table_collab': self.table_collab, 'lab': self.lab_table_1} # 'elevator': self.elevator, 'cafe':self.cafe} #bar_table':self.bar_table, 'light_table':self.light_table, 'collab_table':self.collab_table, 'dark_table':self.dark_table}
+        self.keyposes = {'lab_table_d': self.lab_table_d, 'light_table': self.lab_table_1} # 'elevator': self.elevator, 'cafe':self.cafe} #bar_table':self.bar_table, 'light_table':self.light_table, 'collab_table':self.collab_table, 'dark_table':self.dark_table}
 
     def update_pose(self, pose_msg):
         self.pose = pose_msg.pose.pose
@@ -108,6 +116,8 @@ class State():
     def add_action_to_action_history(self, action_taken):
         try:
             self.action_history.append(action_taken.data)
+            if "grasp" in action_taken.data:
+                self.grasped_object = action_taken.data.split("_", 1)[-1] # grasp_cracker_box -> cracker_box
         except AttributeError:
             self.action_history.append(action_taken)
 
@@ -356,6 +366,7 @@ class ActionClient():
         move_goal = MoveBaseGoal()
         move_goal.target_pose = keypose
         move_goal.target_pose.header.stamp = rospy.Time.now()
+        rospy.logwarn("Sending this goal to move_base: {}".format(move_goal))
         move_base_client.send_goal(move_goal)
         # self.cancelNav()
         move_base_client.wait_for_result()
@@ -481,7 +492,7 @@ class SFMClient():
         # self.start_exp_sub = rospy.Subscriber(
         #     "/start_experiment", String, self.run)
         self.execute_frame_sub = rospy.Subscriber(
-            "/execute", String, self.irosVideo)
+            "/execute", String, self.execute_frame)
         # self.ac.goToKeyPose(self.state.keyposes['cafe'])
         # keyposeGoal = self.state.keyposes['dark_table']
         # self.ac.goToKeyPose(keyposeGoal) 
@@ -801,7 +812,8 @@ class SFMClient():
             object, frameFilter.label))
         objGrasped = False
         while not frameFilter.converged:
-            rospy.loginfo_throttle(1, "Waiting for filter to converge....")
+            # rospy.logwarn(f"!!!!! Searching for {object}!!!!!!")
+            # rospy.loginfo_throttle(1, "Waiting for filter to converge....")
             self.searchFor(object)
         rospy.sleep(10) # let filters update
         self.ac.cancelNav()
@@ -818,6 +830,7 @@ class SFMClient():
                 dist = distToKeypose
                 keyposeGoal = keypose
             # dist = min(dist, ())
+        rospy.logwarn("Nav to keypose: {}".format(keyposeGoal))
         self.ac.goToKeyPose(keyposeGoal)
         rospy.sleep(2)     
         # self.ac.point_head(0.8, 0.0, 0.8, "base_link")
@@ -880,13 +893,14 @@ class SFMClient():
         print("[AGENT]: Entering pourObject({}, {}, {})".format(
             object, target, frameFilter.label))
         # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to pour obj into target
-        keyposeGoal = self.state.keyposes['table_collab']
+        keyposeGoal = self.state.keyposes['lab_table_d']
         self.ac.goToKeyPose(keyposeGoal)
         self.ac.point_head(1, 0, 0.8, 'base_link')
         for ii in range(100):
                 self.update_filters(publish=True)
         rospy.logwarn("Pouring crackerbox into bowl")
         best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
+        self.ac.point_head(0.8, 0, 0.8, "base_link")
         self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
         self.ac.pick(mode=3,goal=None)
         return True
@@ -897,17 +911,17 @@ class SFMClient():
         mean = self.object_filters[object_name].latest_bgmm_mean        
         goal_x = mean[0]
         goal_y = mean[1]
+        # rospy.logwarn(f"In Searchfor bgmm mean is {mean}")
         self.ac.go_to(goal_x, goal_y, 0)
         self.ac.cancelNav() # stop moving
         self.ac.point_head(2, 0, 0.8, "base_link")
         self.ac.run_yolo() # get observation
     
-
     def execute_frame(self, frame_name: String):
+        rospy.logwarn("!!!! Calling run yolo!!!!")
         self.ac.run_yolo()
         rospy.sleep(5)
         self.execute(frame_name.data)
-        self.update = True
 
     def execute(self, frame_name: str):
         frameFilter = self.frame_filters[frame_name]
@@ -937,6 +951,13 @@ class SFMClient():
         
         elif frame_name.split("_")[0] == "put":
             return self.putObject("foo", "bar", frameFilter)
+        
+        elif frame_name.split("_")[0] == "pour":
+            '''
+            if pour_object != self.state.grasped_object -> Raise Exception
+            
+            '''
+            return self.pourObject(self.state.grasped_object, "bowl", frameFilter)
 
         # self.update = False
         # if frame_name.data == 'make_coffee':
@@ -1145,23 +1166,25 @@ class SFMClient():
         '''
 
 
-        # self.execute_frame('pour_cereal_bowl')
+        self.execute_frame('pour_cereal_bowl')
         #OR
         #the step by step method
-        frame_name = 'grasp_cracker_box'
-        frameFilter = self.frame_filters[frame_name]
-        ## initialize filters
-        rospy.logwarn("Updating filters 50 times")
-        for ii in range(50):
-            self.update_filters(publish=True)
-        ## Run Detection
-        rospy.logwarn("Running Detections")
-        self.ac.run_yolo()
-        if self.graspObject(frame_name.split("_", 1)[1], frameFilter):
-        # if self.graspObject("cracker_box", "grasp_cracker_box_sf"):
-            rospy.logwarn("Picked crackerbox")
-            self.object_filters['bowl'].handle_ar = True
-            self.pourObject('bowl', 'pour_cereal_bowl')            
+        # frame_name = 'grasp_cracker_box'
+        # frameFilter = self.frame_filters[frame_name]
+        # ## initialize filters
+        # rospy.logwarn("Updating filters 50 times")
+        # for ii in range(50):
+        #     self.update_filters(publish=True)
+        # ## Run Detection
+        # rospy.logwarn("Running Detections")
+        # self.ac.run_yolo()
+        # for ii in range(100):
+        #     self.update_filters(publish=True)
+        # if self.graspObject(frame_name.split("_", 1)[1], frameFilter):
+        # # # if self.graspObject("cracker_box", "grasp_cracker_box_sf"):
+        #     rospy.logwarn("Picked crackerbox")
+        #     self.object_filters['bowl'].handle_ar = True
+        #     self.pourObject('bowl', 'pour_cereal_bowl')            
             # best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
             # self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
             # self.ac.pick(mode=3,goal=None)
@@ -1442,7 +1465,9 @@ if __name__ == '__main__':
     #     rospy.spin()
       
     # foo.irosVideo()
-    foo.run()
+    while not rospy.is_shutdown():
+        foo.update_filters()
+    # foo.run()
 
     # r = rospy.Rate(1000)
     # i = 0
