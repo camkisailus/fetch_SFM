@@ -19,6 +19,10 @@ from actionlib_msgs.msg import GoalID
 from perception.msg import YOLORequestAction, YOLORequestGoal, YOLORequestResult
 
 class State():
+    '''
+        State class tracks the pose of the robot, current grasped object, and a history of completed actions.
+        For now, we also pre-define some keyposes for easier navigation/manipulation.
+    '''
     def __init__(self, action_history):
         self.action_history = action_history
         self.ah_sub = rospy.Subscriber(
@@ -26,7 +30,9 @@ class State():
         self.robot_pose_sub = rospy.Subscriber(
             "/amcl_pose", PoseWithCovarianceStamped, self.update_pose)
         self.pose = Pose()
+        self.grasped_object = None
         
+        # Predefined keyposes
         self.lab_table_1 = PoseStamped()
         self.lab_table_1.header.frame_id = "map"
         self.lab_table_1.pose.position.x = 0.00525866035576
@@ -40,80 +46,19 @@ class State():
         self.lab_table_d.pose.position.y = 5.864
         self.lab_table_d.pose.orientation.z = 0.742
         self.lab_table_d.pose.orientation.w = 0.670
-        
-        # self.table_collab = PoseStamped()
-        # self.table_collab.header.frame_id = "map"
-        # self.table_collab.pose.position.x = -4.367
-        # self.table_collab.pose.position.y = 16.978
-        # self.table_collab.pose.orientation.z = -0.036
-        # self.table_collab.pose.orientation.w = 0.999
-        
-        self.grasped_object = None
-        
-        # self.cameron_desk = PoseStamped()
-        # self.cameron_desk.header.frame_id = "map"
-        # self.cameron_desk.pose.position.x = -3.28849729359
-        # self.cameron_desk.pose.position.y = 5.16245196023
-        # self.cameron_desk.pose.orientation.z = -0.104762630252
-        # self.cameron_desk.pose.orientation.w = 0.994497255553
-
-        # self.kitchenette = PoseStamped()
-        # self.kitchenette.header.frame_id = "map"
-        # self.kitchenette.pose.position.x = -24.3778061078
-        # self.kitchenette.pose.position.y = 10.2972501758
-        # self.kitchenette.pose.orientation.z = -0.359123618168
-        # self.kitchenette.pose.orientation.w = 0.933290001486
-
-        # self.elevator = PoseStamped()
-        # self.elevator.header.frame_id = "map"
-        # self.elevator.pose.position.x = -25.3382212272
-        # self.elevator.pose.position.y = -0.214239395009
-        # self.elevator.pose.orientation.z = 0.932596699117
-        # self.elevator.pose.orientation.w = 0.360920208352
-
-        # self.cafe = PoseStamped()
-        # self.cafe.header.frame_id = "map"
-        # self.cafe.pose.position.x = 53.3599001981
-        # self.cafe.pose.position.y = 17.7733172747
-        # self.cafe.pose.orientation.z = -0.242401881817
-        # self.cafe.pose.orientation.w = 0.970175926156
-
-
-        # self.bar_table = PoseStamped()
-        # self.bar_table.header.frame_id = "map"
-        # self.bar_table.pose.position.x = -1.33155682554
-        # self.bar_table.pose.position.y = -9.42210028979
-        # self.bar_table.pose.orientation.z = -0.763555768388
-        # self.bar_table.pose.orientation.w = 0.645741890047
-
-        # self.light_table = PoseStamped()
-        # self.light_table.header.frame_id = "map"
-        # self.light_table.pose.position.x = -1.13065147758
-        # self.light_table.pose.position.y = -2.91366557389
-        # self.light_table.pose.orientation.z = -0.0920840595321
-        # self.light_table.pose.orientation.w = 0.995751236997
-
-
-        # self.collab_table = PoseStamped()
-        # self.collab_table.header.frame_id = "map"
-        # self.collab_table.pose.position.x = -3.01642181153
-        # self.collab_table.pose.position.y = 8.21563250394
-        # self.collab_table.pose.orientation.z = -0.0984918944551
-        # self.collab_table.pose.orientation.w = 0.995137853127
-
-        # self.dark_table = PoseStamped()
-        # self.dark_table.header.frame_id = "map"
-        # self.dark_table.pose.position.x = -1.61673320814
-        # self.dark_table.pose.position.y = -7.26435249898
-        # self.dark_table.pose.orientation.z = -0.0586793015966
-        # self.dark_table.pose.orientation.w = 0.99827688522
-
-        self.keyposes = {'lab_table_d': self.lab_table_d, 'light_table': self.lab_table_1} # 'elevator': self.elevator, 'cafe':self.cafe} #bar_table':self.bar_table, 'light_table':self.light_table, 'collab_table':self.collab_table, 'dark_table':self.dark_table}
+    
+        self.keyposes = {'lab_table_d': self.lab_table_d, 'light_table': self.lab_table_1}
 
     def update_pose(self, pose_msg):
+        '''
+            Keep track of the pose of the robot by subscribing to the amcl msg
+        '''
         self.pose = pose_msg.pose.pose
 
     def add_action_to_action_history(self, action_taken):
+        '''
+            Add succesfully compeleted actions to the actions history. This is used in the context potential in SeFM
+        '''
         try:
             self.action_history.append(action_taken.data)
             if "grasp" in action_taken.data:
@@ -122,6 +67,11 @@ class State():
             self.action_history.append(action_taken)
 
 class Region():
+    '''
+        Regions are 3D cuboids in the map that can be "negative" or "positive" regions.
+        Negative regions are regions we've observed but not seen a specific object.
+        Positive regions are usually reserved for object-leve priors.
+    '''
     def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z, cube_in_map=None):
         self.name = name
         self.min_x = min_x
@@ -155,18 +105,6 @@ class Region():
         else:
             self.pub = rospy.Publisher("/region/{}".format(name), MarkerArray, queue_size=1)
             frame_id = "/map"
-            # self.marker_line_list(cube_in_map[0], cube_in_map[1], frame_id)
-            # self.marker_line_list(cube_in_map[1], cube_in_map[2], frame_id)
-            # self.marker_line_list(cube_in_map[2], cube_in_map[3], frame_id)
-            # self.marker_line_list(cube_in_map[3], cube_in_map[0], frame_id)
-            # self.marker_line_list(cube_in_map[4], cube_in_map[5], frame_id)
-            # self.marker_line_list(cube_in_map[5], cube_in_map[6], frame_id)
-            # self.marker_line_list(cube_in_map[6], cube_in_map[7], frame_id)
-            # self.marker_line_list(cube_in_map[7], cube_in_map[4], frame_id)
-            # self.marker_line_list(cube_in_map[0], cube_in_map[4], frame_id)
-            # self.marker_line_list(cube_in_map[1], cube_in_map[5], frame_id)
-            # self.marker_line_list(cube_in_map[2], cube_in_map[6], frame_id)
-            # self.marker_line_list(cube_in_map[3], cube_in_map[7], frame_id)
             self.cube = cube_in_map
             self.marker_array = MarkerArray()
             self.marker_array_line_list(cube_in_map, frame_id)
@@ -187,7 +125,6 @@ class Region():
         cube3d_center = (self.cube[0] + self.cube[6])/2.0
 
         dir_vec = point - cube3d_center
-        # print(size1,size2, size3)
         if ((np.absolute(np.dot(dir_vec, dir1)) * 2) <= size1) and ((np.absolute(np.dot(dir_vec, dir2)) * 2) <= size2) and ((np.absolute(np.dot(dir_vec, dir3)) * 2) <= size3):
             return True
         else :
@@ -272,50 +209,12 @@ class Region():
     def get_bounds(self):
         return (self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z)
 
-# class Region():
-#     def __init__(self, name, min_x, max_x, min_y, max_y, min_z, max_z):
-#         self.name = name
-#         self.min_x = min_x
-#         self.max_x = max_x
-#         self.min_y = min_y
-#         self.max_y = max_y
-#         self.min_z = min_z
-#         self.max_z = max_z
-#         self.pub = rospy.Publisher(
-#             "/region/{}".format(name), Marker, queue_size=1)
-#         self.marker = Marker()
-#         self.marker.id = 0
-#         self.marker.header.frame_id = 'map'
-#         if name.startswith("neg"):
-#             self.marker.color.r = 1
-
-#         self.marker.color.a = 0.5
-#         self.marker.type = Marker.CUBE
-#         self.marker.action = Marker.ADD
-#         self.marker.lifetime = rospy.Duration(0)
-#         self.marker.pose.position.x = (min_x + max_x)/2
-#         self.marker.pose.position.y = (min_y + max_y)/2
-#         self.marker.pose.position.z = (min_z + max_z)/2
-#         self.marker.pose.orientation.w = 1.0
-#         self.marker.scale.x = max_x - min_x
-#         self.marker.scale.y = max_y - min_y
-#         self.marker.scale.z = max_z - min_z
-#         self.pub.publish(self.marker)
-
-#     def __hash__(self):
-#         return hash(self.name)
-
-#     def publish(self):
-#         self.pub.publish(self.marker)
-
-#     def get_bounds(self):
-#         return (self.min_x, self.max_x, self.min_y, self.max_y, self.min_z, self.max_z)
-
-
 class ActionClient():
+    '''
+        Client side to the action server running on Fetch under the node 'fetch_actions'.
+        Through this client we can move_base (navigation), control torso height, point the head, do manipulation tasks, and call our YOLO detector 
+    '''
     def __init__(self):
-        # self.make_plan_client = rospy.ServiceProxy('move_base/make_plan', GetPlan)
-
         self.move_base_client = actionlib.SimpleActionClient(
             "kisailus_move_base", MoveBaseRequestAction)
         self.move_base_client.wait_for_server()
@@ -340,6 +239,7 @@ class ActionClient():
         # self.point_head_pub = rospy.Publisher('/point_head/at', Point, queue_size=10)
         # self.cur_pose_sub = rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.pose_cb)
         # self.cur_pose = Pose()
+
     def run_yolo(self):
         goal = YOLORequestGoal()
         goal.publish_detections = True
@@ -397,58 +297,41 @@ class ActionClient():
         self.point_head_client.send_goal(request)
         self.point_head_client.wait_for_result()
 
-    # def pick_from_cmd(self, msg):
-    #     self.pick(mode=0)
-
     def pick(self, mode=0, goal=None):
         request = PickRequestGoal()
         request.mode = mode
         if goal:
             request.pick_pose = goal  # this is particle loc in map frame
-            # if mode == 2:
-            #     request.place_pose = goal
         self.pick_client.send_goal(request)
         rospy.loginfo("Sent pick_client goal")
         self.pick_client.wait_for_result()
         res = self.pick_client.get_result()
         return res
 
-        # request = PickRequestGoal()
-        # if mode == 1:
-        #     assert(goal is not None)
-        #     request.pick_pose = goal
-        # request.mode = int(mode)
-        # request.pick_pose = Pose()
-        # self.pick_client.send_goal(request)
-        # rospy.loginfo("Sent pick_client goal")
-        # self.pick_client.wait_for_result()
-
-    # def tuck_arm(self):
-
 
 class SFMClient():
+    ''' 
+        Main driver for running SFM experiments. 
+    '''
     def __init__(self, experiment_config=None):
         # Experiment-specific stuff
-        self.update = True
-        self.ac = ActionClient()
-        self.neg_regions = set()
-        self.regions = {}
-        self.experiment_config = experiment_config
-        self.record = rospy.get_param("~record")
+        self.update = True # boolean controls whether we should update filters or not
+        self.ac = ActionClient() # calls to action client
+        self.neg_regions = set() # maintain negative regions
+        self.regions = {} # maintain region priors
+        self.experiment_config = experiment_config # config yaml
+        self.record = rospy.get_param("~record") # are we recording a bag?
         self.kb = init_knowledge_base(rospy.get_param(
-            '~sf_dir'), experiment_config['frames'])
-        self.state = State(experiment_config['action_history'])
+            '~sf_dir'), experiment_config['frames']) # init semantic frames
+        self.state = State(experiment_config['action_history']) # init state
         for region in experiment_config['regions']:
-            # rospy.logwarn(region)
+            # build regions
             cubePoints = np.zeros((8,3))
-            # rospy.logwarn(region['points'])
-            # assert(len(region['points']) == 8)
             for i, point in enumerate(region['points']):
                 cubePoints[i, 0] = float(point.split(",")[0])
                 cubePoints[i, 1] = float(point.split(",")[1])
                 cubePoints[i, 2] = float(point.split(",")[2])
             self.regions[region['name']] = Region(region['name'], 0, 0, 0, 0, 0, 0, cubePoints)
-        # TODO (kisailus): Give robot ground truth observations at init??
         self.observations = {}
         try:
             for observation in experiment_config['observations']:
@@ -460,7 +343,7 @@ class SFMClient():
             pass
 
         # Filters
-        self.object_filters = {}
+        self.object_filters = {} # build up a filter for each object we are tracking
         for object in experiment_config['objects']:
             name = object['name']
             priors = {}
@@ -470,34 +353,28 @@ class SFMClient():
                 50, valid_regions=priors, label=name, mapBox=self.regions['map'])
             self.object_filters[object['name']].publish()
 
-        self.frame_filters = {}
+        self.frame_filters = {} # build up a filter for each frame we are tracking
         for _, frame in enumerate(self.kb):
             filter = FrameParticleFilter(
                 100, frame.name, frame.preconditions, frame.core_frame_elements, mapBox=self.regions['map'])
             filter.publish()
             for cfe in frame.core_frame_elements:
+                # add objects for measurement potential
                 filter.add_frame_element(self.object_filters[cfe], cfe)
             self.frame_filters[frame.name] = filter
             rospy.loginfo("{} filter initialized".format(frame.name))
         for frame in self.kb:
             for precondition in frame.preconditions:
-                print("Adding {} for {}".format(precondition, frame.name))
+                # add preconditions for context potential
                 self.frame_filters[frame.name].add_precondition(
                     self.frame_filters[precondition], precondition)
         self.tf_listener = tf.TransformListener()
-        self.observation_sub = rospy.Subscriber(
-            'scene/observations', ObjectDetectionArray, self.handle_observation, queue_size=1)
-        self.observationCount = 0
         # ROS subscribers
-        # self.start_exp_sub = rospy.Subscriber(
-        #     "/start_experiment", String, self.run)
+        self.observation_sub = rospy.Subscriber(
+            'scene/observations', ObjectDetectionArray, self.handle_observation, queue_size=1) # msgs come from YOLO detections
+        self.observationCount = 0
         self.execute_frame_sub = rospy.Subscriber(
-            "/execute", String, self.execute_frame)
-        # self.ac.goToKeyPose(self.state.keyposes['cafe'])
-        # keyposeGoal = self.state.keyposes['dark_table']
-        # self.ac.goToKeyPose(keyposeGoal) 
-        
-        # self.update_filters_sub = rospy.Subscriber("/update_filters", Int8, self.update_filters)
+            "/execute", String, self.execute_frame) # main cb for executing a frame
 
         # Debug info for frames
         # for _, filter in self.frame_filters.items():
@@ -516,12 +393,6 @@ class SFMClient():
         #             print("\tpcond: {}, filter: {}".format(name, p_filter.label))
         #     except AttributeError:
         #         print("No preconditions!")
-
-    # def update_filters(self, msg):
-    #     rospy.logwarn("Updating Filters")
-    #     for _ in range(msg.data*10):
-    #         self.update_filters()
-    #     rospy.logwarn("Done updating filters")
 
     def generateNegativeRegion(self):
         #Observable region is cube
@@ -586,9 +457,9 @@ class SFMClient():
         # rospy.logwarn("Handling observation")
         self.observationCount +=1
         objectsSeen = set()
-        rospy.logwarn(msg)
+        # rospy.logwarn(msg)
         for detection in msg.detections:
-            rospy.logwarn(detection.label)
+            # rospy.logwarn(detection.label)
             objectsSeen.add(detection.label)
             try:
                 self.object_filters[detection.label].add_observation(detection)
@@ -599,7 +470,6 @@ class SFMClient():
         if cube_in_map is None:
             rospy.logerr("Could not generate cube_in_map")
             return
-        # rospy.logwarn("Cube not None")
         reg = Region("Neg_reg_{}".format(self.observationCount), 0, 0, 0, 0, 0, 0, cube_in_map)   
         for label, filter in self.object_filters.items():
             if label not in objectsSeen:
@@ -614,6 +484,8 @@ class SFMClient():
             region.publish()
 
     def update_filters(self, publish=True):
+        if not self.update:
+            return
         for _, filter in self.object_filters.items():
             filter.update_filter()
             if publish:
@@ -624,6 +496,9 @@ class SFMClient():
                 filter.publish()
 
     def add_observations(self, possible_observations=[]):
+        '''
+            Only used in simulation 
+        '''
         # add observations if they are within 5m of the robot's current pose, else add negative region
         cur_pose = self.state.pose
         for _, filter in self.object_filters.items():
@@ -649,6 +524,7 @@ class SFMClient():
            
     def run_observation_routine(self, object_detections=[], frame=None):  #added object_detections as input
         """
+        Only used in simulation.
         This is a simulated object detection method
             
         If the robot in near or in a region that an object is in, we add the observation
@@ -743,64 +619,6 @@ class SFMClient():
                 filter.add_negative_region(reg)
                 # self.neg_regions.add(reg)
                 
-    # def run_observation_routine(self):
-    #     """
-    #     This is a simulated object detection method
-
-    #     If the robot in near or in a region that an object is in, we add the observation
-    #     else, add that region as a negative obersvation region for that object
-
-    #     """
-    #     cur_pose = self.state.pose
-    #     min_x = cur_pose.position.x - 2
-    #     max_x = cur_pose.position.x + 2
-    #     min_y = cur_pose.position.y - 2
-    #     max_y = cur_pose.position.y + 2
-    #     min_z = 0
-    #     max_z = 2.0
-    #     reg = Region("neg_reg_{}".format(len(self.neg_regions)),
-    #                  min_x, max_x, min_y, max_y, min_z, max_z)
-    #     region_added = False
-    #     pos_added = []
-    #     for _, filter in self.object_filters.items():
-    #         try:
-    #             for obs in self.experiment_config['observations']:
-    #                 # rospy.logwarn("{} location is ({}, {})".format(obs['name'], obs['x'], obs['y']))
-    #                 # if obs['name'] != filter.label:
-    #                 #     continue
-    #                 x_err = (obs['x'] - self.state.pose.position.x)**2
-    #                 y_err = (obs['y'] - self.state.pose.position.y)**2
-    #                 # if np.sqrt(x_err + y_err ) <= 1 and obs['name'] == filter.label:
-    #                 #     if frame == 'grasp_spoon' and filter.label == 'spoon':
-    #                 #     # simulate completed action
-    #                 #         rospy.logwarn("Successfully completed {}".format(frame))
-    #                 #         return True
-    #                 #     elif frame == 'stir_cup' and filter.label == 'cup':
-    #                 #         rospy.logwarn("Successfully completed {}".format(frame))
-    #                 #         return True
-    #                 #     elif frame == 'grasp_cup' and filter.label == 'cup':
-    #                 #         rospy.logwarn("Adding observation to {} dist to obj is {}".format(filter.label, np.sqrt(x_err+y_err)))
-    #                 #         filter.add_observation_from_config(obs['x'], obs['y'], obs['z'])
-    #                 #         pos_added.append(filter.label)
-    #                 #         # rospy.logwarn("Successfully completed {}".format(frame))
-    #                 #         # return True
-    #                 if np.sqrt(x_err + y_err) < 5 and obs['name'] == filter.label:
-    #                     rospy.logwarn("Adding observation to {} dist to obj is {}".format(
-    #                         filter.label, np.sqrt(x_err+y_err)))
-    #                     filter.add_observation_from_config(
-    #                         obs['x'], obs['y'], obs['z'])
-    #                     pos_added.append(filter.label)
-
-    #         except KeyError:
-    #             # no observations defined in the experiment
-    #             pass
-    #     for _, filter in self.object_filters.items():
-    #         if filter.label not in pos_added:
-    #             rospy.logwarn("Adding neg region to {}".format(filter.label))
-    #             filter.add_negative_region(reg)
-    #             self.neg_regions.add(reg)
-    #     return False
-
     def dist(self, robot, obj):
         x_dist = np.abs(robot.position.x - obj.x)
         y_dist = np.abs(robot.position.y - obj.y)
@@ -808,16 +626,20 @@ class SFMClient():
         return np.sqrt(x_dist**2 + y_dist**2)
 
     def graspObject(self, object: str, frameFilter: FrameParticleFilter) -> bool:
+        '''
+            Execution routine for grasping an object
+            Args:
+                object (str): name of object we want to grasp
+                frameFilter (FrameParticleFilter): filter for distribution of grasp_{object}
+            Returns:
+                res (bool): True if grasp was successful, False otherwise
+        '''
         rospy.loginfo("[AGENT]: Entering graspObj({}, {})".format(
             object, frameFilter.label))
         objGrasped = False
         while not frameFilter.converged:
-            # rospy.logwarn(f"!!!!! Searching for {object}!!!!!!")
-            # rospy.loginfo_throttle(1, "Waiting for filter to converge....")
             self.searchFor(object)
         rospy.sleep(10) # let filters update
-        self.ac.cancelNav()
-        rospy.sleep(2)
         self.update = False # pause filter updates
         best_particle = frameFilter.maxParticle#getHighestWeightedParticle()
         dist = 1e3
@@ -832,6 +654,7 @@ class SFMClient():
             # dist = min(dist, ())
         rospy.logwarn("Nav to keypose: {}".format(keyposeGoal))
         self.ac.goToKeyPose(keyposeGoal)
+        self.ac.cancelNav()
         rospy.sleep(2)     
         # self.ac.point_head(0.8, 0.0, 0.8, "base_link")
         rospy.logwarn("Particle loc: ({:.6f}, {:.6f}, {:.6f}".format(best_particle[0], best_particle[1], best_particle[2]))
@@ -845,9 +668,16 @@ class SFMClient():
         self.state.add_action_to_action_history(frameFilter.label)
         return True
 
-        # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to grasp
-
     def putObject(self, object, target, frameFilter: FrameParticleFilter) -> bool:
+        '''
+            Execution routine for placing an object
+            Args:
+                object (str): name of object we want to place
+                target (str): name of object we want to place {object} onto
+                frameFilter (FrameParticleFilter): filter for distribution of place_{object}
+            Returns:
+                res (bool): True if grasp was successful, False otherwise
+        '''
         print("[AGENT]: Entering putObject({}, {}, {})".format(object, target, frameFilter.label))
         keyposeGoal = self.state.keyposes['bar_table']
         self.ac.goToKeyPose(keyposeGoal)
@@ -885,9 +715,9 @@ class SFMClient():
             # dist = min(dist, ())
 
     def stirObject(self, object, target, frameFilter: FrameParticleFilter)->bool:
+        # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to stir target with object
         print("[AGENT]: Entering stirObject({}, {}, {})".format(
             object, target, frameFilter.label))
-        # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to stir target with object
 
     def pourObject(self, object, target, frameFilter: FrameParticleFilter) -> bool:
         print("[AGENT]: Entering pourObject({}, {}, {})".format(
@@ -895,12 +725,12 @@ class SFMClient():
         # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to pour obj into target
         keyposeGoal = self.state.keyposes['lab_table_d']
         self.ac.goToKeyPose(keyposeGoal)
-        self.ac.point_head(1, 0, 0.8, 'base_link')
+        # self.ac.point_head(1, 0, 0.8, 'base_link')
         for ii in range(100):
                 self.update_filters(publish=True)
         rospy.logwarn("Pouring crackerbox into bowl")
         best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
-        self.ac.point_head(0.8, 0, 0.8, "base_link")
+        # self.ac.point_head(0.8, 0, 0.8, "base_link")
         self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
         self.ac.pick(mode=3,goal=None)
         return True
@@ -918,9 +748,8 @@ class SFMClient():
         self.ac.run_yolo() # get observation
     
     def execute_frame(self, frame_name: String):
-        rospy.logwarn("!!!! Calling run yolo!!!!")
         self.ac.run_yolo()
-        rospy.sleep(5)
+        rospy.sleep(2)
         self.execute(frame_name.data)
 
     def execute(self, frame_name: str):
@@ -959,213 +788,12 @@ class SFMClient():
             '''
             return self.pourObject(self.state.grasped_object, "bowl", frameFilter)
 
-        # self.update = False
-        # if frame_name.data == 'make_coffee':
-            # best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
-        #     self.ac.move_torso(0.4)
-        #     self.ac.point_head(best_particle[0], best_particle[1], best_particle[2]-0.1)
-        #     p = Pose()
-        #     p.position.x = best_particle[0]
-        #     p.position.y = best_particle[1]
-        #     p.position.z = best_particle[2]
-        #     suc = self.ac.pick(mode=0, goal=p) # pick master_chef_can
-        #     if suc:
-        #         self.state.add_action_to_action_history('grasp_master_chef_can')
-        #         for _ in range(1000):
-        #             self.update_filters(publish=True)
-        #         best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
-        #         self.ac.point_head(best_particle[0], best_particle[1], best_particle[2]-0.1)
-        #         p = Pose()
-        #         p.position.x = best_particle[0]
-        #         p.position.y = best_particle[1]-0.15
-        #         p.position.z = best_particle[2]
-        #         self.ac.pick(mode=2, goal=p) # place since we cannot pour yet
-
-        # else:
-        #     # Get best particle
-        #     best_particle = self.frame_filters[frame_name.data].particles[np.argmax(self.frame_filters[frame_name.data].weights)]
-        #     rospy.logwarn("[SFM DRIVER]: Highest weighted grasp_block particle at ({}, {}, {})".format(best_particle[0], best_particle[1], best_particle[2]))
-        #     # Nav to best particle
-        #     # self.ac.go_to(best_particle[0], best_particle[1], 0.0)
-        #     self.ac.move_torso(0.4)
-        #     self.ac.point_head(best_particle[0], best_particle[1], best_particle[2]-0.1)
-        #     # p = PoseStamped()
-        #     # p.header.frame_id = 'map'
-        #     # p.pose.position.x = best_particle[0]
-        #     # p.pose.position.y = best_particle[1]
-        #     # p.pose.position.z = best_particle[2]
-        #     # p.pose.orientation.w = 1.0
-        #     p = Pose()
-        #     p.position.x = best_particle[0]
-        #     p.position.y = best_particle[1]
-        #     p.position.z = best_particle[2]
-        #     p.orientation.w = 1
-
-        #     suc = self.ac.pick(mode=0, goal=p)
-        #     # rospy.logwarn(suc)
-        #     # rospy.sleep(10)
-        #     # self.ac.pick(mode=2)
-        #     # rospy.sleep(10)
-        #     # self.ac.pick(mode=1)
-        # self.update = True
-            # Run observation routine
-            # Update filters
-
-        # if frame_name.data == 'grasp_master_chef_can':
-        #     rospy.logwarn("Got request to grasp master can")
-        #     rospy.logwarn("First going to look at the can")
-        #     # frame_bgmm = self.frame_filters['grasp_master_chef_can'].bgmm()
-        #     grasp_mcc = self.frame_filters[frame_name.data]
-        #     mcc_obj = grasp_mcc.frame_element_filters['master_chef_can']
-        #     mcc_det = mcc_obj.observations[0]
-        #     pick_pose = Pose()
-        #     pick_pose.position.x = mcc_det.x
-        #     pick_pose.position.y = mcc_det.y + 0.02
-        #     pick_pose.position.z = mcc_det.z
-        #     rospy.logwarn("Sending pick location to picker")
-        #     self.ac.pick(mode=1, goal=pick_pose)
-
-        #     # means, covs, weights = self.frame_filters[frame_name.data].bgmm()
-        #     # max_idx = np.argmax(weights)
-        #     # max_weight_mean = means[max_idx]
-        #     rospy.logwarn("Pointing head to: ({}, {}, {})".format(mcc_det.x, mcc_det.y, mcc_det.z))
-        #     self.ac.point_head(mcc_det.x, mcc_det.y, mcc_det.z)
-        #     dist = self.dist(self.state.pose, mcc_det)
-        #     rospy.logwarn("Object is {} m away from the robot")
-        #     if dist > 0.8:
-        #         rospy.logwarn("Now navigate toward the obj")
-        #         nav_goal_x = mcc_det.x
-        #         nav_goal_y = mcc_det.y + 0.6
-        #         nav_goal_t = -np.pi/2  #np.arctan2(mcc_det.x, mcc_det.y)
-        #         rospy.logwarn("Nav goal: ({}, {}, {})".format(nav_goal_x, nav_goal_y, nav_goal_t))
-        #         self.ac.go_to(nav_goal_x, nav_goal_y, nav_goal_t)
-        #     self.ac.point_head(mcc_det.x, mcc_det.y, mcc_det.z)
-        #     pick_pose = Pose()
-        #     pick_pose.position.x = mcc_det.x
-        #     pick_pose.position.y = mcc_det.y + 0.02
-        #     pick_pose.position.z = mcc_det.z
-        #     rospy.logwarn("Sending pick location to picker")
-        #     self.ac.pick(mode=1, goal=pick_pose)
-
-# def pick(self, mode=0, goal=None):
-#     if mode == 1:
-#         assert(goal is not None)
-#         request.goal = goal
-#     request = PickRequestGoal()
-#     request.mode = mode
-#     self.pick_client.send_goal(request)
-#     rospy.loginfo("Sent pick_client goal")
-#     self.pick_client.wait_for_result()
-
-    # def execute_frame(self, frame_name):
-    #     rospy.logwarn("Got msg to execute {}".format(frame_name))
-    #     preconditions = []
-    #     if self.frame_filters[frame_name].preconditions is not None:
-    #         preconditions = self.frame_filters[frame_name].preconditions
-    #     else:
-    #         preconditions = []
-    #         cur_action = frame_name
-    #     rospy.logwarn("{} has preconditions: {}".format(frame_name, preconditions))
-    #     for frame in preconditions:
-    #         if frame in self.state.action_history:
-    #             # pop action off preconditions since it's completed
-    #             preconditions = preconditions[1:]
-    #         else:
-    #             cur_action = frame
-    #     rospy.logwarn("Cur action is : {}".format(cur_action))
-
-    #     # preconditions = self.frame_filters[frame_name].preconditions
-    #     for precondition in preconditions:
-    #         chances = 3
-    #         precondition_complete = False
-    #         while chances > 0 and not precondition_complete:
-    #             rospy.logwarn("Updating filters with {} chance(s) remaining".format(chances))
-    #             # update filters
-    #             update_steps = 50
-    #             for i in range(update_steps):
-    #                 # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
-    #                 if self.record:
-    #                     # if we are recording a bag publish every time
-    #                     self.update_filters(publish=True)
-    #                 else:
-    #                     # if not just publish every 10 updates
-    #                     self.update_filters(publish=(i%10==0))
-    #             # go to max
-    #             means, covs, weights = self.frame_filters[frame_name].bgmm()
-    #             max_idx = np.argmax(weights)
-    #             max_weight_mean = means[max_idx]
-    #             self.ac.go_to(max_weight_mean[0], max_weight_mean[1], 0)
-    #             precondition_complete = self.run_observation_routine(precondition)
-    #             if precondition_complete:
-    #                 self.state.add_action_to_action_history(precondition)
-    #             chances-=1
-    #         if not precondition_complete:
-    #             # out of chances and unable to complete some precondition
-    #             return False
-    #     rospy.logwarn("Finished all preconditions!")
-    #     # finished all preconditions try to do final action
-    #     chances = 3
-    #     while chances > 0:
-    #         rospy.logwarn("Updating filters with {} chance(s) remaining".format(chances))
-    #         # update filters
-    #         update_steps = 50
-    #         for i in range(update_steps):
-    #             # rospy.logwarn("SFM Driver: Updating Filters Step {}/{}".format(i, update_steps))
-    #             if self.record:
-    #                 # if we are recording a bag publish every time
-    #                 self.update_filters(publish=True)
-    #             else:
-    #                 # if not just publish every 10 updates
-    #                 self.update_filters(publish=(i%10==0))
-    #         # go to max
-    #         means, covs, weights = self.frame_filters[frame_name].bgmm()
-    #         max_idx = np.argmax(weights)
-    #         max_weight_mean = means[max_idx]
-    #         self.ac.go_to(max_weight_mean[0], max_weight_mean[1], 0)
-    #         task_complete = self.run_observation_routine(frame_name)
-    #         if task_complete:
-    #             return True
-    #         chances-=1
-    #     return False
-    def irosVideo(self, msg):
-        # go to Cameron Desk
-        # Run YOLO, add neg region
-        # Go to kitchenette,
-        # Run YOLO, see mug
-        # Grasp Mug
-        # Go to Hallway
-        # run = input("Run? (y/n)")
-        # if run.lower() == 'y':
-        #     self.update = False
-        #     self.ac.goToKeyPose(self.state.keyposes['cameron_desk'])
-        #     rospy.sleep(5)
-        #     self.ac.run_yolo()
-        #     self.update=True
-        #     rospy.sleep(10)
-        #     self.update=False
-        # run = input("Run? (y/n)")
-        # if run.lower() == 'y':
-        self.ac.goToKeyPose(self.state.keyposes['cafe'])
-            # self.ac.goToKeyPose(self.state.keyposes['kitchenette'])
-            # rospy.sleep(5)
-            # self.ac.run_yolo()
-            # self.update=True
-            # self.execute('grasp_mug')
-        #     rospy.sleep(10)
-        #     self.update=False
-        # run = input("Run? (y/n)")
-        # if run.lower() == 'y':
-        return True
-
 
 
     def run(self):
-
         '''
-            Pour Cheezit into Bowl demo
+            Use this function to run quick demos
         '''
-
-
         self.execute_frame('pour_cereal_bowl')
         #OR
         #the step by step method
@@ -1467,7 +1095,6 @@ if __name__ == '__main__':
     # foo.irosVideo()
     while not rospy.is_shutdown():
         foo.update_filters()
-    # foo.run()
 
     # r = rospy.Rate(1000)
     # i = 0
