@@ -46,8 +46,15 @@ class State():
         self.lab_table_d.pose.position.y = 5.864
         self.lab_table_d.pose.orientation.z = 0.742
         self.lab_table_d.pose.orientation.w = 0.670
+
+        self.collab_table_d = PoseStamped()
+        self.collab_table_d.header.frame_id = "map"
+        self.collab_table_d.pose.position.x = -3.98
+        self.collab_table_d.pose.position.y = 16.978
+        self.collab_table_d.pose.orientation.z = -0.036
+        self.collab_table_d.pose.orientation.w = 0.999
     
-        self.keyposes = {'lab_table_d': self.lab_table_d, 'light_table': self.lab_table_1}
+        self.keyposes = {'lab_table_d': self.lab_table_d, 'light_table': self.lab_table_1, 'collab_table_d': self.collab_table_d}
 
     def update_pose(self, pose_msg):
         '''
