@@ -673,6 +673,7 @@ class SFMClient():
         rospy.logwarn("Sending pick location to picker")
         self.ac.pick(mode=0, goal=pick_pose)
         self.state.add_action_to_action_history(frameFilter.label)
+        self.state.grasped_object = object
         return True
 
     def putObject(self, object, target, frameFilter: FrameParticleFilter) -> bool:
@@ -730,13 +731,26 @@ class SFMClient():
         print("[AGENT]: Entering pourObject({}, {}, {})".format(
             object, target, frameFilter.label))
         # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to pour obj into target
-        keyposeGoal = self.state.keyposes['lab_table_d']
+        # while not frameFilter.converged:
+        #     self.searchFor(object)
+        rospy.sleep(10) # let filters update
+        self.update = False # pause filter updates
+        best_particle = frameFilter.maxParticle#getHighestWeightedParticle()
+        dist = 1e3
+        keyposeGoal = None
+        for name, keypose in self.state.keyposes.items():
+            xdist = np.abs(keypose.pose.position.x - best_particle[0])**2
+            ydist = np.abs(keypose.pose.position.y - best_particle[1])**2
+            distToKeypose = np.sqrt(xdist + ydist)
+            if distToKeypose < dist:
+                dist = distToKeypose
+                keyposeGoal = keypose
+            # dist = min(dist, ())
+        rospy.logwarn("Nav to keypose: {}".format(keyposeGoal))
         self.ac.goToKeyPose(keyposeGoal)
+        self.ac.cancelNav()
         # self.ac.point_head(1, 0, 0.8, 'base_link')
-        for ii in range(100):
-                self.update_filters(publish=True)
-        rospy.logwarn("Pouring crackerbox into bowl")
-        best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
+        # best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
         # self.ac.point_head(0.8, 0, 0.8, "base_link")
         self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
         self.ac.pick(mode=3,goal=None)
@@ -751,7 +765,7 @@ class SFMClient():
         # rospy.logwarn(f"In Searchfor bgmm mean is {mean}")
         self.ac.go_to(goal_x, goal_y, 0)
         self.ac.cancelNav() # stop moving
-        self.ac.point_head(2, 0, 0.8, "base_link")
+        self.ac.point_head(goal_x, goal_y, 0.8, "map")
         self.ac.run_yolo() # get observation
     
     def execute_frame(self, frame_name: String):

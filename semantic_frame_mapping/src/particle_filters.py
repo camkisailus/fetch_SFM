@@ -597,28 +597,28 @@ class ObjectParticleFilter(ParticleFilter):
             observation.publish()
 
     def handle_ar_detection(self, msg):
-        if self.handle_ar:
-            for detection in msg.detections:
-                obj_label = self.ar_to_obj_map[detection.id[0]]
-                if obj_label.split("_")[0] == self.label:
-                    new_obj = True
-                    for obs in self.observations:
-                        if obs.label == obj_label:
-                            obs.update_position(detection.pose.pose.pose.position.x,
-                                                detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z, rospy.Time.now())
-                            new_obj = False
-                    if new_obj:
-                        print("Adding new observation for {}".format(obj_label))
-                        obj = StaticObject(obj_label, detection.pose.pose.pose.position.x,
-                                        detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z, rospy.Time.now())
-                        self.observations.append(obj)
+        # if self.handle_ar:
+        for detection in msg.detections:
+            obj_label = self.ar_to_obj_map[detection.id[0]]
+            if obj_label.split("_")[0] == self.label:
+                new_obj = True
+                for obs in self.observations:
+                    if obs.label == obj_label:
+                        obs.update_position(detection.pose.pose.pose.position.x,
+                                            detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z, rospy.Time.now())
+                        new_obj = False
+                if new_obj:
+                    print("Adding new observation for {}".format(obj_label))
+                    obj = StaticObject(obj_label, detection.pose.pose.pose.position.x,
+                                    detection.pose.pose.pose.position.y, detection.pose.pose.pose.position.z, rospy.Time.now())
+                    self.observations.append(obj)
 
     def add_observation_from_config(self, x, y, z):
         self.observations.append(StaticObject(self.label, x, y, z))
 
     def add_observation(self, detection):
         self.converged = True
-        rospy.logwarn(f"!!!!{self.label} has converged!!!!")
+        # rospy.logwarn(f"!!!!{self.label} has converged!!!!")
         newObj = True
         for obs in self.observations:
             if obs.label == detection.label:
@@ -786,10 +786,10 @@ class FrameParticleFilter(ParticleFilter):
         # return.
         # if "cracker_box" not in self.label:
         #     return
-        # if self.update_count % 20 != 0:
-        #     # rospy.logwarn("{} update count = {}".format(self.label, self.update_count))
-        #     return
-        return
+        if self.update_count % 50 != 0:
+            # rospy.logwarn("{} update count = {}".format(self.label, self.update_count))
+            return
+        # return
         arr = MarkerArray()
         means, covs, weights = self.bgmm()
         max_idx = np.argmax(weights)
@@ -840,7 +840,7 @@ class FrameParticleFilter(ParticleFilter):
                         2 + marker.scale.z**2)
             # if foo > 5:
             #     break
-        rospy.logwarn("{} gauss # {} scale is: {}".format(self.label, count, foo))
+        # rospy.logwarn("{} gauss # {} scale is: {}".format(self.label, count, foo))
 
         # marker.color.a = 0.5
         if count > 1:
@@ -958,7 +958,7 @@ class FrameParticleFilter(ParticleFilter):
     def update_filter(self, state):
         self.update_count += 1
         if self.label.startswith("grasp") and self.frame_element_filters[self.frame_elements[0]].converged:
-            rospy.logwarn("!!!!!!{} converged!!!!!!!".format(self.label))
+            # rospy.logwarn("!!!!!!{} converged!!!!!!!".format(self.label))
             self.converged = True
         with self.lock:
             self.kisailus_resample()
