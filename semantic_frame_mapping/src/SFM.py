@@ -36,7 +36,7 @@ class State():
         self.lab_table_1 = PoseStamped()
         self.lab_table_1.header.frame_id = "map"
         self.lab_table_1.pose.position.x = 0.00525866035576
-        self.lab_table_1.pose.position.y = 2.30981243854
+        self.lab_table_1.pose.position.y = 2.25981243854
         self.lab_table_1.pose.orientation.z = 0.581420008308
         self.lab_table_1.pose.orientation.w = 0.813603572963
 
@@ -753,9 +753,12 @@ class SFMClient():
         # best_particle = self.frame_filters['pour_cereal_bowl'].maxParticle
         # self.ac.point_head(0.8, 0, 0.8, "base_link")
         self.ac.point_head(best_particle[0], best_particle[1], best_particle[2], "map")
-        self.ac.pick(mode=3,goal=None)
+        pick_pose = Pose()
+        pick_pose.position.x = best_particle[0]
+        pick_pose.position.y = best_particle[1]
+        pick_pose.position.z = best_particle[2]
+        self.ac.pick(mode=3,goal=pick_pose)
         return True
-
 
     def searchFor(self, object_name): #returns next beleived pose position
         # self.update = False
@@ -763,10 +766,13 @@ class SFMClient():
         goal_x = mean[0]
         goal_y = mean[1]
         # rospy.logwarn(f"In Searchfor bgmm mean is {mean}")
-        self.ac.go_to(goal_x, goal_y, 0)
+        self.ac.go_to(goal_x, goal_y, np.pi/2)
         self.ac.cancelNav() # stop moving
-        self.ac.point_head(goal_x, goal_y, 0.8, "map")
+        # self.ac.point_head(goal_x, goal_y, 0.8, "map")
+        self.ac.point_head(0.8, 0, 0.8, "base_link")
+        rospy.sleep(2)
         self.ac.run_yolo() # get observation
+        rospy.sleep(5)
     
     def execute_frame(self, frame_name: String):
         self.ac.run_yolo()
