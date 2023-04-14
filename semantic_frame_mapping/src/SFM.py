@@ -403,7 +403,7 @@ class SFMClient():
 
     def generateNegativeRegion(self):
         #Observable region is cube
-        cube_length = 4
+        cube_length = 2#4
         #Constructing a cube in Camera Tilt Link
         cube_coord = np.zeros((8,3))
         #Bottom 4 points, going counter-clockwise from bottom left corner
@@ -645,8 +645,8 @@ class SFMClient():
             object, frameFilter.label))
         objGrasped = False
         while not frameFilter.converged:
-            self.searchFor(object)
-        rospy.sleep(10) # let filters update
+            self.searchFor(object, frameFilter)
+        rospy.sleep(4) # let filters update
         self.update = False # pause filter updates
         best_particle = frameFilter.maxParticle#getHighestWeightedParticle()
         dist = 1e3
@@ -733,7 +733,7 @@ class SFMClient():
         # TODO: Implement this checking if frameFilter is converged, picking navGoal, navigating and then attempting to pour obj into target
         # while not frameFilter.converged:
         #     self.searchFor(object)
-        rospy.sleep(10) # let filters update
+        rospy.sleep(4) # let filters update
         self.update = False # pause filter updates
         best_particle = frameFilter.maxParticle#getHighestWeightedParticle()
         dist = 1e3
@@ -760,9 +760,10 @@ class SFMClient():
         self.ac.pick(mode=3,goal=pick_pose)
         return True
 
-    def searchFor(self, object_name): #returns next beleived pose position
+    def searchFor(self, object_name, frame_filter): #returns next beleived pose position
         # self.update = False
-        mean = self.object_filters[object_name].latest_bgmm_mean        
+        # mean = self.object_filters[object_name].getGaussianMixture()
+        mean = frame_filter.getGaussianMixture()
         goal_x = mean[0]
         goal_y = mean[1]
         # rospy.logwarn(f"In Searchfor bgmm mean is {mean}")
@@ -772,7 +773,7 @@ class SFMClient():
         self.ac.point_head(0.8, 0, 0.8, "base_link")
         rospy.sleep(2)
         self.ac.run_yolo() # get observation
-        rospy.sleep(5)
+        rospy.sleep(2)
     
     def execute_frame(self, frame_name: String):
         self.ac.run_yolo()

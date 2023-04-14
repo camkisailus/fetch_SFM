@@ -102,7 +102,8 @@ class ParticleFilter(object):
         self.converged = False
         self.update_count = 0
         toggle_sub = rospy.Subscriber("toggle_regions", Bool, self.toggle_regions)
-        
+        self.gauss_pub = rospy.Publisher(
+            'filter/gauss/{}'.format(label), MarkerArray, queue_size=10)
 
     def getHighestWeightedParticle(self):
         return self.particles[np.argmax(self.weights)]
@@ -396,7 +397,7 @@ class ParticleFilter(object):
                 # marker.color.r = 1
                 marker.color.b = 1
                 marker.type = marker.SPHERE  
-            elif self.label == 'mustard_bottle':
+            elif self.label == 'sugar_box':
                 marker.color.r = 1
                 marker.color.g = 1
                 marker.type = marker.CUBE
@@ -404,9 +405,10 @@ class ParticleFilter(object):
                 marker.color.r = 1
                 # marker.color.g = 1
                 marker.type = marker.SPHERE
-            elif self.label == 'grasp_master_chef_can':
+            elif self.label == 'grasp_sugar_box':
                 # red sphere
-                marker.color.b = 1
+                marker.color.r = 1
+                marker.color.g = 1
                 marker.type = marker.SPHERE
             elif self.label == 'put_cracker_box_on_bar_table':
                 marker.color.g = 1
@@ -424,6 +426,14 @@ class ParticleFilter(object):
                 # marker.color.r = 1
                 # marker.color.g = 1
                 marker.color.g = 1
+                marker.type = marker.SPHERE
+            elif self.label == 'pour_sugar_box':
+                marker.color.b = 1
+                marker.color.g = 1
+                marker.type = marker.SPHERE
+            elif self.label == 'make_snack':
+                marker.color.r = 1
+                marker.color.b = 1
                 marker.type = marker.SPHERE
             
             # elif self.label == 'grasp_mug':
@@ -477,6 +487,84 @@ class ParticleFilter(object):
             # break
         self.marker_pub.publish(marker_array)
 
+    def getGaussianMixture(self):
+        means, covs, weights = self.bgmm()
+        max_idx = np.argmax(weights)
+        m, c = means[max_idx], covs[max_idx]
+        # self.latest_bgmm_mean = m
+        def normalize(v):
+            norm = np.linalg.norm(v)
+            if norm == 0:
+                return v
+            return v / norm
+        n = 2
+        # indices = (-weights).argsort()[:n]
+        count = 0
+        # for idx in indices:
+        #     if count > 0:
+        #         break
+        #     m, c, _ = means[idx], covs[idx], weights[idx]
+
+        (eigValues, eigVectors) = np.linalg.eig(c)
+        eigx_n = np.array(
+            [eigVectors[0, 0], eigVectors[0, 1], eigVectors[0, 2]]).reshape(1, 3)
+        eigy_n = - \
+            np.array([eigVectors[1, 0], eigVectors[1, 1],
+                        eigVectors[1, 2]]).reshape(1, 3)
+        eigz_n = np.array(
+            [eigVectors[2, 0], eigVectors[2, 1], eigVectors[2, 2]]).reshape(1, 3)
+        eigx_n = normalize(eigx_n)
+        eigy_n = normalize(eigy_n)
+        eigz_n = normalize(eigz_n)
+        rot_mat = np.hstack([eigx_n.T, eigy_n.T, eigz_n.T])
+        rot = R.from_matrix(rot_mat)
+        quat = rot.as_quat()
+        marker = Marker()
+        marker.id = count
+        count += 1
+        marker.type = Marker.SPHERE
+        marker.action = Marker.ADD
+        marker.pose.position.x = m[0]
+        marker.pose.position.y = m[1]
+        marker.pose.position.z = m[2]
+        marker.header.frame_id = 'map'
+        marker.pose.orientation.x = quat[0]
+        marker.pose.orientation.y = quat[1]
+        marker.pose.orientation.z = quat[2]
+        marker.pose.orientation.w = quat[3]
+        marker.scale.x = eigValues[0]*2
+        marker.scale.y = eigValues[1]*2
+        marker.scale.z = eigValues[2]*2
+        foo = np.sqrt(marker.scale.x**2 + marker.scale.y **
+                        2 + marker.scale.z**2)
+        # if foo > 5:
+        #     break
+        # rospy.logwarn("{} gauss # {} scale is: {}".format(self.label, count, foo))
+
+        # marker.color.a = 0.5
+        # if count > 1:
+        # marker.lifetime = rospy.Duration(10)
+        marker.lifetime = rospy.Duration(0)
+        marker.color.a = 1.0#0.75 - count*0.2
+        # count+=1
+        # if self.label == 'cracker_box':
+        #     # red cube
+        #     marker.color.r = 1
+
+        # elif self.label == 'master_chef_can':
+        #     # blue cube
+        #     marker.color.b = 1
+        # marker.lifetime = rospy.Duration(10)
+        if self.label == 'pour_cereal_bowl':
+            marker.color.g = 1
+        elif self.label == 'grasp_cracker_box':
+            marker.color.r = 1
+        arr = MarkerArray()
+        arr.markers.append(marker)
+        rospy.logwarn("Publishing Gaussian for {}".format(self.label))
+        self.gauss_pub.publish(arr)
+        return m
+
 
 class ObjectParticleFilter(ParticleFilter):
     def __init__(self, n, valid_regions, label, mapBox):
@@ -493,8 +581,8 @@ class ObjectParticleFilter(ParticleFilter):
         self.marker_pub = rospy.Publisher(
             'filter/particles/{}'.format(label), MarkerArray, queue_size=10)
         self.observations = []
-        self.gauss_pub = rospy.Publisher(
-            'filter/gauss/{}'.format(label), MarkerArray, queue_size=10)
+        # self.gauss_pub = rospy.Publisher(
+        #     'filter/gauss/{}'.format(label), MarkerArray, queue_size=10)
         self.latest_bgmm_mean = None
         
         # if self.label == 'spoon':
@@ -518,6 +606,7 @@ class ObjectParticleFilter(ParticleFilter):
 
     def publish(self):
         super(ObjectParticleFilter, self).publish()
+        return
         if self.update_count % 50 != 0 or "table" in self.label:
             return
         # return
@@ -767,8 +856,8 @@ class FrameParticleFilter(ParticleFilter):
 
         self.marker_pub = rospy.Publisher(
             'filter/particles/{}'.format(label), MarkerArray, queue_size=10)
-        self.gauss_pub = rospy.Publisher(
-            'filter/gauss/{}'.format(label), MarkerArray, queue_size=10)
+        # self.gauss_pub = rospy.Publisher(
+        #     'filter/gauss/{}'.format(label), MarkerArray, queue_size=10)
         self.frame_element_filters = {
             frame_element: None for frame_element in core_frame_elements}
         self.frame_elements = core_frame_elements
@@ -783,7 +872,7 @@ class FrameParticleFilter(ParticleFilter):
     def publish(self, gauss_only=False):
         # if not gauss_only:
         super(FrameParticleFilter, self).publish()
-        # return.
+        return
         # if "cracker_box" not in self.label:
         #     return
         if self.update_count % 50 != 0:
@@ -887,17 +976,17 @@ class FrameParticleFilter(ParticleFilter):
 
         self.gauss_pub.publish(arr)
 
-    def gmm(self):
-        with self.lock:
-            good_particles = []
-            max_weight = max(self.weights)
-            min_weight = min(self.weights)
-            threshold = min_weight + float((max_weight - min_weight)*0.9)
-            for i in range(self.n):
-                if self.weights[i] >= threshold:
-                    good_particles.append(self.particles[i, :])
-            gm = GaussianMixture(random_state=0).fit(good_particles)
-            return gm.means_[0], gm.covariances_
+    # def gmm(self):
+    #     with self.lock:
+    #         good_particles = []
+    #         max_weight = max(self.weights)
+    #         min_weight = min(self.weights)
+    #         threshold = min_weight + float((max_weight - min_weight)*0.9)
+    #         for i in range(self.n):
+    #             if self.weights[i] >= threshold:
+    #                 good_particles.append(self.particles[i, :])
+    #         gm = GaussianMixture(random_state=0).fit(good_particles)
+    #         return gm.means_[0], gm.covariances_
 
     def add_frame_element(self, frame_element_filter, frame_element_name):
         self.frame_element_filters[frame_element_name] = frame_element_filter

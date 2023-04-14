@@ -4,10 +4,14 @@
 name: make_snack
 description: grasp cheezit, pour into mug #grasp sugar, pour into mug 
 frame_elements:
-  - name: crack_box
+  - name: cracker_box
     is_core: True
-  - name: mug
+  - name: bowl
+    is_core: True
+  - name: sugar_box
+    is_core: True
+  - name: bowl
     is_core: True
 preconditions:
-  - name: grasp_cracker_box
-  - name: pour_coffee_mug
+  - name: pour_cereal_bowl
+  - name: pour_sugar_box

@@ -7,11 +7,11 @@
         <param name="experiment_config" value="$(arg experiment_config)"/>
         <param name="record" value="$(arg record)"/>
     </node>
-    <!-- <node
+    <node
         pkg="rosbag" 
         type="record" 
         name="rosbag_record_node" 
-        args="record -o /home/cuhsailus/Desktop/pour_cracker_boxDEMO
+        args="record -o //home/logan/kisailus_ws/fetch_sfm_ws/pour_cereal_bowl_demo
             /tf
             /map
             /filter/particles/bowl
@@ -23,5 +23,5 @@
             /planning_scene
             "
         output="log"
-    /> -->
+    />
 </launch>

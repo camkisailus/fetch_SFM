@@ -1,6 +1,6 @@
 # Experiment Setup
 
-title: "make_cereal_bowl_video"
+title: "make_cereal_sugar_bowl_video"
 description: ""
 regions:
   # - name: "map"
@@ -105,6 +105,11 @@ objects:
     priors:
       - name: "lab"
         weight: 1      
+  
+  - name: "sugar_box"
+    priors:
+      - name: "lab"
+        weight: 1      
   # - name: "master_chef_can"
   #   priors:
   #     - name: "collab"
@@ -120,6 +125,9 @@ objects:
 frames:
   - "grasp_cracker_box"
   - "pour_cereal_bowl"
+  - "grasp_sugar_box"
+  - "pour_sugar_box"
+  - "make_snack"
   # - "grasp_master_chef_can"
   # - "put_cracker_box_on_bar_table"
   # - "grasp_mustard_bottle"
